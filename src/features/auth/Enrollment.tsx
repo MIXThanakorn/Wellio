@@ -1,4 +1,5 @@
-import { Heart, ArrowRight, UsersRound } from "lucide-react";
+import { Heart, ArrowRight, UsersRound, BookOpen } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { ErrorBox } from "../../components/ui";
@@ -62,8 +63,8 @@ export function Enrollment() {
           <AccountPicker onSelect={(slug) => void choose(slug)} busy={busy} />
         )}
         <p className="help">
-          ไม่ต้องกรอกอีเมล รหัสผ่าน หรือ PIN เปลี่ยนบัญชีได้โดยกดออกจาก session
-          แล้วเลือกชื่อใหม่
+          ไม่ต้องกรอกอีเมลหรือรหัสผ่าน หากต้องการเปลี่ยนคน ให้กด “เปลี่ยนคน /
+          ออก” แล้วเลือกชื่อใหม่
         </p>
         {session && (
           <button
@@ -78,7 +79,7 @@ export function Enrollment() {
               }
             }}
           >
-            ออกจาก session นี้
+            กลับไปเลือกชื่อ
           </button>
         )}
         <div className="divider">
@@ -97,6 +98,10 @@ export function Enrollment() {
           <br />
           ไม่บันทึกลงบัญชีจริง
         </p>
+        <Link className="enrollment-guide-link" to="/guide">
+          <BookOpen size={18} />
+          อ่านวิธีใช้ Wellio
+        </Link>
       </section>
     </main>
   );

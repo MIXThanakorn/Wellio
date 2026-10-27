@@ -1,7 +1,17 @@
-import { useState, type FormEvent } from "react";
-import { Check, Utensils, Footprints, Scale, Droplets } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import {
+  Check,
+  Utensils,
+  Footprints,
+  Scale,
+  Droplets,
+  ImagePlus,
+  Trash2,
+  Camera,
+  ChevronDown,
+} from "lucide-react";
 import { Modal, ErrorBox } from "../../components/ui";
-import { localInput, fromLocal, dayKey } from "../../lib/dates";
+import { localInput, fromLocal, dayKey, thaiDate } from "../../lib/dates";
 import {
   kindLabels,
   mealLabels,
@@ -15,6 +25,13 @@ import {
   waterSchema,
 } from "../../lib/validation";
 import { useJournal } from "./useJournal";
+import { useAuth } from "../auth/AuthProvider";
+import {
+  prepareMealPhoto,
+  storeMealPhoto,
+  removeMealPhoto,
+} from "../meals/photos";
+import { MealPhoto } from "../meals/MealPhoto";
 export const kindIcons = {
   meal: Utensils,
   activity: Footprints,
@@ -33,6 +50,23 @@ export function EntryForm({
   onSaved: () => void;
 }) {
   const journal = useJournal();
+  const { profile, demo } = useAuth();
+  const [photo, setPhoto] = useState<Blob | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!photo) {
+      setPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(photo);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
+  const existingPhoto =
+    typeof initial?.photo_path === "string" ? initial.photo_path : null;
   const [error, setError] = useState("");
   const [name, setName] = useState(String(initial?.name || ""));
   const [category, setCategory] = useState(
@@ -65,9 +99,41 @@ export function EntryForm({
   const [notes, setNotes] = useState(String(initial?.notes || ""));
   const [portion, setPortion] = useState(String(initial?.portion_text || ""));
   const [effort, setEffort] = useState(String(initial?.effort || "light"));
+  const [discarding, setDiscarding] = useState(false);
+  const snapshot = JSON.stringify([
+    name,
+    category,
+    when,
+    amount,
+    notes,
+    portion,
+    effort,
+  ]);
+  const [original] = useState(snapshot);
+  const dirty = snapshot !== original || Boolean(photo) || removePhoto;
+  const requestClose = () => {
+    if (dirty) setDiscarding(true);
+    else onClose();
+  };
+  async function choosePhoto(file: File) {
+    setPreparing(true);
+    setError("");
+    try {
+      setPhoto(await prepareMealPhoto(file));
+      setRemovePhoto(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "เตรียมรูปไม่สำเร็จ");
+    } finally {
+      setPreparing(false);
+    }
+  }
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (submitting || preparing) return;
+    setSubmitting(true);
     setError("");
+    let uploaded: string | undefined;
+    let saved = false;
     try {
       const raw =
         kind === "meal"
@@ -100,6 +166,10 @@ export function EntryForm({
         setError(parsed.error.issues[0].message);
         return;
       }
+      if (kind === "meal" && photo) {
+        if (!profile) throw new Error("กรุณาเลือกบัญชีก่อน");
+        uploaded = await storeMealPhoto(photo, profile.user_id, demo);
+      }
       await journal.save(
         (
           {
@@ -109,158 +179,391 @@ export function EntryForm({
             water: "water",
           } as const
         )[kind],
-        { ...parsed.data, ...(initial?.id ? { id: initial.id } : {}) },
+        {
+          ...parsed.data,
+          ...(kind === "meal"
+            ? { photo_path: uploaded || (removePhoto ? null : existingPhoto) }
+            : {}),
+          ...(initial?.id ? { id: initial.id } : {}),
+        },
       );
+      saved = true;
+      if (existingPhoto && (uploaded || removePhoto) && profile) {
+        try {
+          await removeMealPhoto(existingPhoto, profile.user_id, demo);
+        } catch {
+          console.warn(
+            "Previous meal photo will be removed by scheduled cleanup.",
+          );
+        }
+      }
       onSaved();
     } catch (e) {
+      if (uploaded && !saved && profile) {
+        try {
+          await removeMealPhoto(uploaded, profile.user_id, demo);
+        } catch {
+          console.warn(
+            "Unused meal photo cleanup will be retried by maintenance.",
+          );
+        }
+      }
       setError(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
+    } finally {
+      setSubmitting(false);
     }
   }
   return (
-    <Modal
-      title={`${initial?.id ? "แก้ไข" : "เพิ่ม"}${kindLabels[kind]}`}
-      onClose={onClose}
-    >
-      <form onSubmit={submit} className="form-stack">
-        {error && <ErrorBox message={error} />}
-        {kind === "meal" && (
-          <>
-            <label>
-              ชื่ออาหาร
-              <input
-                autoFocus
-                required
-                maxLength={200}
-                placeholder="วันนี้กินอะไรอร่อยๆ?"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-            {journal.data?.favorites.length !== 0 && (
-              <div className="favorite-pills">
-                {journal.data?.favorites.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    className="chip"
-                    onClick={() => {
-                      setName(f.name);
-                      setCategory(f.meal_type);
-                      setPortion(f.portion_text || "");
-                    }}
-                  >
-                    {f.name}
-                  </button>
-                ))}
-              </div>
-            )}
-            <label>
-              มื้ออาหาร
-              <select
-                aria-label="มื้ออาหาร"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                {Object.entries(mealLabels).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              ปริมาณ <span>(ไม่บังคับ)</span>
-              <input
-                maxLength={200}
-                placeholder="เช่น 1 จาน"
-                value={portion}
-                onChange={(e) => setPortion(e.target.value)}
-              />
-            </label>
-          </>
-        )}
-        {kind === "activity" && (
-          <>
-            <label>
-              ประเภทกิจกรรม
-              <select
-                aria-label="ประเภทกิจกรรม"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                {Object.entries(activityLabels).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              ความรู้สึกระหว่างทำ
-              <select
-                aria-label="ความรู้สึกระหว่างทำ"
-                value={effort}
-                onChange={(e) => setEffort(e.target.value)}
-              >
-                <option value="light">เบา สบายๆ</option>
-                <option value="moderate">ปานกลาง</option>
-                <option value="vigorous">ค่อนข้างหนัก</option>
-              </select>
-            </label>
-          </>
-        )}
-        {kind !== "meal" && (
-          <label>
-            {kind === "activity"
-              ? "ระยะเวลา (นาที)"
-              : kind === "weight"
-                ? "น้ำหนัก (กก.)"
-                : "ปริมาณน้ำ (มล.)"}
-            <input
-              autoFocus={kind !== "activity"}
-              required
-              type="number"
-              inputMode="decimal"
-              min={kind === "weight" ? 0.01 : 1}
-              max={kind === "activity" ? 1440 : kind === "weight" ? 1000 : 5000}
-              step={kind === "weight" ? "0.01" : "1"}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </label>
-        )}
-        <label>
-          {kind === "weight" ? "วันที่" : "วันและเวลา (เวลาไทย)"}
-          <input
-            required
-            type={kind === "weight" ? "date" : "datetime-local"}
-            max={kind === "weight" ? dayKey() : localInput()}
-            value={when}
-            onChange={(e) => setWhen(e.target.value)}
-          />
-        </label>
-        {kind !== "water" && (
-          <label>
-            บันทึกเพิ่มเติม <span>(ไม่บังคับ)</span>
-            <textarea
-              rows={3}
-              maxLength={2000}
-              placeholder="ความรู้สึก หรือสิ่งที่อยากจดไว้…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </label>
-        )}
-        {kind === "weight" && (
-          <p className="help">
-            บันทึกเมื่อคุณสะดวก ตัวเลขเป็นเพียงข้อมูลหนึ่ง ไม่ใช่คะแนนของวัน
+    <>
+      <Modal
+        title={`${initial?.id ? "แก้ไข" : "เพิ่ม"}${kindLabels[kind]}`}
+        onClose={requestClose}
+        busy={submitting || preparing}
+      >
+        <form onSubmit={submit} className="form-stack">
+          <p className="entry-form-hint">
+            บันทึกให้ <strong>{profile?.display_name}</strong> ·{" "}
+            {initial?.id ? "แก้ไขรายการเดิม" : "วันที่และเวลาใส่ให้แล้ว"}
           </p>
-        )}
-        <button className="button primary full" disabled={journal.saving}>
-          <Check size={18} />
-          {journal.saving ? "กำลังบันทึก…" : "บันทึก"}
-        </button>
-      </form>
-    </Modal>
+          {error && <ErrorBox message={error} />}
+          <fieldset className="form-content" disabled={submitting}>
+            {kind === "meal" && (
+              <>
+                <label>
+                  ชื่ออาหาร
+                  <input
+                    autoFocus
+                    required
+                    maxLength={200}
+                    placeholder="วันนี้กินอะไรอร่อยๆ?"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </label>
+                {journal.data?.favorites.length !== 0 && (
+                  <div className="favorite-pills">
+                    {journal.data?.favorites.map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        className="chip"
+                        onClick={() => {
+                          setName(f.name);
+                          setCategory(f.meal_type);
+                          setPortion(f.portion_text || "");
+                        }}
+                      >
+                        {f.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <label>
+                  มื้ออาหาร
+                  <select
+                    aria-label="มื้ออาหาร"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
+                    {Object.entries(mealLabels).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <fieldset className="photo-field">
+                  <legend>
+                    รูปอาหาร <span>(ไม่บังคับ)</span>
+                  </legend>
+                  {preview ? (
+                    <div className="photo-preview">
+                      <img src={preview} alt="ตัวอย่างรูปอาหารก่อนบันทึก" />
+                      <button
+                        type="button"
+                        className="text-button danger-text"
+                        onClick={() => setPhoto(null)}
+                      >
+                        <Trash2 size={16} />
+                        นำรูปที่เลือกออก
+                      </button>
+                    </div>
+                  ) : existingPhoto && !removePhoto ? (
+                    <div className="photo-preview">
+                      <MealPhoto
+                        path={existingPhoto}
+                        name={name || "มื้อนี้"}
+                      />
+                      <button
+                        type="button"
+                        className="text-button danger-text"
+                        onClick={() => setRemovePhoto(true)}
+                      >
+                        <Trash2 size={16} />
+                        นำรูปเดิมออก
+                      </button>
+                    </div>
+                  ) : null}
+                  {removePhoto && !photo && (
+                    <p className="help">
+                      รูปจะถูกนำออกเมื่อกดบันทึก{" "}
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => setRemovePhoto(false)}
+                      >
+                        เก็บรูปเดิมไว้
+                      </button>
+                    </p>
+                  )}
+                  <div className="photo-source-options">
+                    <label className="photo-upload-control camera-control">
+                      <Camera size={20} />
+                      <span>ถ่ายรูปอาหาร</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        aria-label="ถ่ายรูปอาหาร"
+                        className="sr-only"
+                        disabled={preparing || submitting}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (file) void choosePhoto(file);
+                        }}
+                      />
+                    </label>
+                    <label className="photo-upload-control">
+                      <ImagePlus size={20} />
+                      <span>
+                        {preparing
+                          ? "กำลังเตรียมรูป…"
+                          : preview || (existingPhoto && !removePhoto)
+                            ? "เลือกรูปใหม่"
+                            : "เลือกรูปอาหาร"}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        aria-label="แนบรูปอาหาร"
+                        className="sr-only"
+                        disabled={preparing || submitting}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (file) void choosePhoto(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <small>
+                    แนบได้ 1 รูป · JPG, PNG หรือ WebP ไม่เกิน 10 MB
+                    ระบบย่อรูปให้อัตโนมัติ
+                  </small>
+                  {demo && (
+                    <small>โหมดทดลองเก็บรูปไว้ในเบราว์เซอร์นี้เท่านั้น</small>
+                  )}
+                  {preparing && (
+                    <p className="help" role="status">
+                      กำลังเตรียมรูป รอสักครู่…
+                    </p>
+                  )}
+                </fieldset>
+              </>
+            )}
+            {kind === "activity" && (
+              <>
+                <label>
+                  ประเภทกิจกรรม
+                  <select
+                    aria-label="ประเภทกิจกรรม"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
+                    {Object.entries(activityLabels).map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  ความรู้สึกระหว่างทำ
+                  <select
+                    aria-label="ความรู้สึกระหว่างทำ"
+                    value={effort}
+                    onChange={(e) => setEffort(e.target.value)}
+                  >
+                    <option value="light">เบา สบายๆ</option>
+                    <option value="moderate">ปานกลาง</option>
+                    <option value="vigorous">ค่อนข้างหนัก</option>
+                  </select>
+                </label>
+              </>
+            )}
+            {kind !== "meal" && (
+              <>
+                {(kind === "water" || kind === "activity") && (
+                  <div
+                    className="amount-presets"
+                    role="group"
+                    aria-label={
+                      kind === "water" ? "เลือกปริมาณน้ำ" : "เลือกระยะเวลา"
+                    }
+                  >
+                    {(kind === "water" ? [250, 500, 750] : [10, 20, 30]).map(
+                      (value) => (
+                        <button
+                          type="button"
+                          key={value}
+                          className={amount === String(value) ? "selected" : ""}
+                          aria-pressed={amount === String(value)}
+                          onClick={() => setAmount(String(value))}
+                        >
+                          <b>{value}</b> {kind === "water" ? "มล." : "นาที"}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                )}
+                <label>
+                  {kind === "activity"
+                    ? "ระยะเวลา (นาที)"
+                    : kind === "weight"
+                      ? "น้ำหนัก (กก.)"
+                      : "ปริมาณน้ำ (มล.)"}
+                  <input
+                    autoFocus={kind !== "activity"}
+                    required
+                    type="number"
+                    inputMode="decimal"
+                    min={kind === "weight" ? 0.01 : 1}
+                    max={
+                      kind === "activity"
+                        ? 1440
+                        : kind === "weight"
+                          ? 1000
+                          : 5000
+                    }
+                    step={kind === "weight" ? "0.01" : "1"}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                </label>
+              </>
+            )}
+            <details
+              className="entry-details"
+              open={
+                kind === "weight" || Boolean(initial?.id) ? true : undefined
+              }
+            >
+              <summary>
+                <span>
+                  รายละเอียดเพิ่มเติม{" "}
+                  <small>
+                    แก้วันที่
+                    {kind === "meal"
+                      ? " ปริมาณ หรือโน้ต"
+                      : kind !== "water"
+                        ? " หรือโน้ต"
+                        : "และเวลา"}
+                  </small>
+                </span>
+                <ChevronDown size={19} />
+              </summary>
+              <div className="form-stack">
+                {kind === "meal" && (
+                  <label>
+                    ปริมาณ <span>(ไม่บังคับ)</span>
+                    <input
+                      maxLength={200}
+                      placeholder="เช่น 1 จาน"
+                      value={portion}
+                      onChange={(e) => setPortion(e.target.value)}
+                    />
+                  </label>
+                )}
+                <label>
+                  {kind === "weight" ? "วันที่" : "วันและเวลา (เวลาไทย)"}
+                  <input
+                    required
+                    type={kind === "weight" ? "date" : "datetime-local"}
+                    max={kind === "weight" ? dayKey() : localInput()}
+                    value={when}
+                    onChange={(e) => setWhen(e.target.value)}
+                  />
+                </label>
+                {kind !== "water" && (
+                  <label>
+                    บันทึกเพิ่มเติม <span>(ไม่บังคับ)</span>
+                    <textarea
+                      rows={3}
+                      maxLength={2000}
+                      placeholder="ความรู้สึก หรือสิ่งที่อยากจดไว้…"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </label>
+                )}
+              </div>
+            </details>
+            {kind !== "weight" && (
+              <p className="entry-date-summary">
+                วันที่บันทึก:{" "}
+                {when && Number.isFinite(new Date(`${when}:00+07:00`).getTime())
+                  ? thaiDate(fromLocal(when), true)
+                  : "กรุณาเลือกวันและเวลา"}
+              </p>
+            )}
+            {kind === "weight" && (
+              <p className="help">
+                บันทึกเมื่อคุณสะดวก ตัวเลขเป็นเพียงข้อมูลหนึ่ง ไม่ใช่คะแนนของวัน
+              </p>
+            )}
+            <div className="entry-save-bar">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={requestClose}
+                disabled={submitting || preparing}
+              >
+                ยกเลิก
+              </button>
+              <button
+                className="button primary full"
+                disabled={submitting || preparing || journal.saving}
+              >
+                <Check size={18} />
+                {submitting
+                  ? photo
+                    ? "กำลังอัปโหลดและบันทึก…"
+                    : "กำลังบันทึก…"
+                  : "บันทึก"}
+              </button>
+            </div>
+          </fieldset>
+        </form>
+      </Modal>
+      {discarding && (
+        <Modal title="ยังไม่ได้บันทึก" onClose={() => setDiscarding(false)}>
+          <p>
+            ข้อมูลที่กรอกไว้ยังไม่ถูกบันทึก ต้องการกลับไปกรอกต่อหรือปิดทิ้ง?
+          </p>
+          <div className="dialog-actions">
+            <button
+              className="button primary"
+              onClick={() => setDiscarding(false)}
+            >
+              กลับไปกรอกต่อ
+            </button>
+            <button className="button secondary" onClick={onClose}>
+              ปิดโดยไม่บันทึก
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }

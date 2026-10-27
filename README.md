@@ -13,7 +13,7 @@ npm run dev
 
 - ไม่มี session → แสดงปุ่ม **มิก** และ **เนม** กดชื่อเพื่อเข้าบัญชีนั้นทันที
 - มี session → เปิดบัญชีเดิมให้เอง รวมถึงหลังปิดแล้วเปิดเบราว์เซอร์ใหม่
-- ปุ่ม **ออกจาก session** บนแถบด้านบน หรือออกจากบัญชีในหน้าตั้งค่า → ล้าง session และกลับหน้าเลือกชื่อ
+- ปุ่ม **เปลี่ยนคน / ออก** บนแถบด้านบน หรือออกจากบัญชีในหน้าตั้งค่า → ล้าง session และกลับหน้าเลือกชื่อ
 - หลังออกแล้วเลือกอีกคนได้จาก URL เดิม ไม่ต้องใช้อีเมล รหัสผ่าน PIN หรือลิงก์เฉพาะคน
 - มีโหมดทดลองที่เก็บข้อมูลสมมติแยกในเบราว์เซอร์
 
@@ -41,6 +41,10 @@ RLS ยังบังคับให้แต่ละ session อ่าน/เ
 ## ฟีเจอร์
 
 - เพิ่ม แก้ไข ลบ ค้นหาอาหาร กิจกรรม น้ำดื่ม และเช็กอินน้ำหนัก
+- แนบรูปอาหาร 1 รูปต่อมื้อ พร้อมตัวอย่าง ดูภาพใหญ่ เปลี่ยนและนำรูปออก รองรับ JPG/PNG/WebP ไม่เกิน 10 MB ก่อนย่ออัตโนมัติเป็นด้านยาวสูงสุด 1600 px
+- หน้าวิธีใช้ภาษาไทย `/guide` มีขั้นตอนเริ่มต้น หัวข้อค้นหาได้ และคำถามที่พบบ่อย เปิดได้ก่อนเลือกบัญชี จากเมนูด้านข้าง หรือหน้าตั้งค่า
+- หน้าแรกมีปุ่มบันทึกอาหาร น้ำดื่ม กิจกรรม และน้ำหนักให้กดได้ทันที พร้อมชื่อคนที่กำลังใช้งานและวิธีใช้บนแถบด้านบนของมือถือ
+- ฟอร์มแสดงข้อมูลจำเป็นก่อน มีปุ่มถ่ายรูปแยกจากคลังรูป ปริมาณน้ำ/ระยะเวลากดเลือกได้ วันที่/เวลาใส่ให้แล้ว และเปิดรายละเอียดเพิ่มได้ หากกรอกค้างแล้วกดปิดจะถามก่อนทิ้งข้อมูล
 - Timeline รายวัน ปฏิทินเดือน/สัปดาห์ และกราฟ 7/30/90/365 วัน
 - น้ำหนักรายสัปดาห์ใช้รายการล่าสุด ไม่เติมข้อมูลในสัปดาห์ที่ขาด และซ่อนได้
 - แผนรายสัปดาห์ เลือกวัน/เวลา พักแผน และทำเครื่องหมายสำเร็จ
@@ -49,7 +53,7 @@ RLS ยังบังคับให้แต่ละ session อ่าน/เ
 - Web Push, Service Worker, VAPID ใน Vault และ Cron ทุก 15 นาที ติดตั้งฝั่ง Supabase แล้ว ผู้ใช้ต้องกดอนุญาต push เอง
 - PWA manifest และ PNG app icons; ไม่ cache Auth tokens หรือ health API responses ใน service worker
 
-ตาราง public 11 ตารางเปิด RLS ครบ: `profiles`, `meal_entries`, `activity_entries`, `weight_checkins`, `water_entries`, `routine_plans`, `plan_completions`, `reminder_preferences`, `push_subscriptions`, `favorite_meals`, `reminder_deliveries` ตาราง ledger ปิดสิทธิ์ client ส่วน completion และ push delivery มี foreign keys ตรวจเจ้าของความสัมพันธ์ด้วย
+ตาราง public 12 ตารางเปิด RLS ครบ: `profiles`, `meal_entries`, `activity_entries`, `weight_checkins`, `water_entries`, `routine_plans`, `plan_completions`, `reminder_preferences`, `push_subscriptions`, `favorite_meals`, `reminder_deliveries`, `meal_photo_cleanup` ตาราง ledger ปิดสิทธิ์ client ส่วน completion และ push delivery มี foreign keys ตรวจเจ้าของความสัมพันธ์ด้วย
 
 Schema `private` เก็บ rate limits และ enrollment รุ่นก่อน ไม่ expose Data API; RPC privileged อนุญาต service_role เท่านั้น ทุก function ตั้ง search_path ไว้ ส่วน helper อ่าน Vault เป็น SECURITY DEFINER ใน schema private และจำกัดสิทธิ์อย่างชัดเจน
 
@@ -72,11 +76,14 @@ npm test
 npm run db:test
 npm run test:e2e
 npm run test:sessions
+npm run test:photos
 npm run build
 ```
 
-- Unit tests 11 รายการ: เวลาไทย ช่วงพัก snooze ข้อมูลว่าง validation และ CSV
-- Playwright 10 รายการ: CRUD, plans, favorites, keyboard focus, หน้าเลือกชื่อ และทุกหน้าที่ 320/375/390/768/1440 px
+- Unit tests 17 รายการ: เวลาไทย ช่วงพัก snooze ข้อมูลว่าง validation รูปอาหาร และ CSV
+- Playwright 22 รายการ: CRUD, plans, favorites, keyboard focus, หน้าเลือกชื่อ รูปอาหารแบบทดลอง หน้าวิธีใช้และค้นหา/FAQ ทางลัดบันทึกและกล้องมือถือ ปริมาณสำเร็จรูป การยืนยันก่อนทิ้งฟอร์ม การล้างรูปทดลอง และหน้าต่างๆ ที่ 320/375/390/768/1440 px
+- `test:photos` ใช้บัญชีจริงทดสอบแนบรูปผ่าน UI ย่อรูป รีโหลด เปลี่ยน ลบ และ Storage RLS รวมการปฏิเสธ URL สาธารณะ ผลอยู่ใน `artifacts/photo-verification.json` ลบเฉพาะมื้อทดสอบ และส่งรูปที่เลิกใช้เข้าคิวล้างตาม Cron
+- SQL `supabase/tests/meal_photos.sql` ทดสอบ path ของเจ้าของ คิวเปลี่ยน/ลบรูป และ RLS บน cloud ใน transaction ที่ rollback
 - `test:sessions` ใช้สองบัญชีจริงจาก URL เดียว ทดสอบ 14 กรณี รวม session หลัง browser restart, logout, reload หลัง logout, เลือกอีกคนโดยไม่ใช้ cache เก่า, RLS ของ session ที่เลือก, invalid slug และป้องกัน admin endpoint ผลอยู่ใน `artifacts/session-verification.json` ลบเฉพาะ journal fixtures ที่สร้างโดยชุดทดสอบเมื่อเสร็จ ไม่ต้องมี private link fixture
 - `db:test` ใช้ PGlite ตรวจ schema/RLS, enrollment รุ่นก่อน และ rate limit ของ profile selection
 - SQL `supabase/tests/profile_selection.sql` รันบน cloud และ rollback เพื่อทดสอบ rate limit/window reset/service-role-only โดยไม่แตะ journal จริง
@@ -85,7 +92,11 @@ npm run build
 
 ## ขอบเขตและผลตรวจ
 
-รูปอาหาร/private Storage, shared plans และ offline write queue เป็น P2 ยังไม่มีปุ่มที่ทำให้เข้าใจว่าใช้งานได้แล้ว ข้อมูลจริงที่โหลดไว้ดูได้ขณะ tab ยังเปิด แต่ไม่รับรอง cold-start offline และไม่แสดงว่าบันทึกสำเร็จเมื่อเครือข่ายล้มเหลว
+รูปอาหารใช้ private Storage bucket `meal-photos` จำกัดไฟล์หลังย่อ 5 MB เปิด RLS ตามบัญชีที่เลือก มี signed URL อายุ 5 นาที ไม่ใช้ public URL และไฟล์ใหม่ใช้ชื่อ UUID เสมอ รูปทดลองเก็บ Blob ใน IndexedDB แยกจากบัญชีจริง CSV ไม่รวมไฟล์รูป
+
+เมื่อเปลี่ยนหรือนำรูปออก ระบบลบไฟล์เก่าผ่าน Storage API และ trigger ส่ง path ที่เลิกใช้เข้าตารางคิว `meal_photo_cleanup` ครอบคลุมการลบมื้อและล้างบันทึกทั้งหมด Cron `send-reminders` ทุก 15 นาทีจะล้างคิวและเก็บไฟล์กำพร้าที่เก่ากว่า 24 ชั่วโมง มี RPC เฉพาะ service role และไม่ลบ metadata ของ Storage ผ่าน SQL ลิงก์รูปที่ออกไปแล้วอาจยังแสดงจาก cache ชั่วคราวหลังลบ
+
+shared plans และ offline write queue ยังไม่รวมในรุ่นนี้ ข้อมูลจริงที่โหลดไว้ดูได้ขณะ tab ยังเปิด แต่ไม่รับรอง cold-start offline และไม่แสดงว่าบันทึกสำเร็จเมื่อเครือข่ายล้มเหลว
 
 Push ฝั่ง server ทดสอบเรียก authenticated cron สำเร็จแล้ว แต่ยังไม่มี subscription/การส่งถึงอุปกรณ์จริง การส่งอาจล่าช้าตาม OS/เครือข่าย ledger กัน job ซ้ำและ retry failed ได้สูงสุด 3 ครั้งโดยเว้นอย่างน้อย 15 นาที
 

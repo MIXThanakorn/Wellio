@@ -1,6 +1,12 @@
 import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./features/auth/AuthProvider";
 import { Enrollment } from "./features/auth/Enrollment";
@@ -17,19 +23,28 @@ import { PlansPage } from "./features/plans/PlansPage";
 import { RemindersPage } from "./features/reminders/RemindersPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { Loading } from "./components/ui";
+import { GuidePage } from "./features/guide/GuidePage";
 import "./styles.css";
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, gcTime: 300000 } },
 });
 function App() {
   const { loading, profile } = useAuth();
+  const location = useLocation();
   if (loading)
     return (
       <div className="initial-loading">
         <Loading />
       </div>
     );
-  if (!profile) return <Enrollment />;
+  if (!profile)
+    return location.pathname === "/guide" ? (
+      <main className="public-guide" id="main-content">
+        <GuidePage />
+      </main>
+    ) : (
+      <Enrollment />
+    );
   return (
     <Routes>
       <Route element={<AppShell />}>
@@ -48,6 +63,7 @@ function App() {
         <Route path="plans" element={<PlansPage />} />
         <Route path="reminders" element={<RemindersPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="guide" element={<GuidePage />} />
         <Route path="enroll" element={<Navigate to="/" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

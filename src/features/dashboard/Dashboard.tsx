@@ -12,7 +12,6 @@ import {
   Check,
   Clock3,
   Sun,
-  Sparkles,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthProvider";
 import { useJournal } from "../journal/useJournal";
@@ -72,7 +71,7 @@ export function Dashboard() {
   );
   return (
     <>
-      <div className="page-heading">
+      <div className="page-heading dashboard-heading">
         <div>
           <div className="eyebrow">
             <Sun size={15} /> {thaiDate()}
@@ -81,43 +80,53 @@ export function Dashboard() {
             สวัสดี {profile?.display_name}{" "}
             <span className="greeting-spark">✳</span>
           </h1>
-          <p>วันนี้เป็นอย่างไรบ้าง? มาใส่ใจตัวเองอีกนิดกัน</p>
+          <p>บันทึกสุขภาพประจำวันของคุณ</p>
         </div>
         <button className="button primary" onClick={() => add()}>
           <Plus size={19} />
           เพิ่มบันทึก
         </button>
       </div>
-      <div className="welcome-banner">
-        <div>
-          <span className="badge white-badge">
-            <Sparkles size={14} /> A LITTLE BETTER, EVERY DAY
-          </span>
-          <h2>สุขภาพที่ดี เริ่มจากเรื่องเล็กๆ</h2>
-          <p>
-            มื้อที่อิ่มใจ การขยับตัวสักนิด หรือดื่มน้ำอีกสักแก้ว
-            <br className="desktop-only" />
-            ทุกอย่างที่ทำเพื่อตัวเอง มีความหมายเสมอ
-          </p>
-          <button className="text-button" onClick={() => navigate("/plans")}>
-            วางแผนวันดีๆ ของคุณ
-            <ArrowRight size={16} />
+      <section className="start-panel" aria-label="บันทึกด่วน">
+        <div className="start-panel-heading">
+          <div>
+            <h2>อยากบันทึกอะไร?</h2>
+            <p>แตะสิ่งที่ต้องการ แล้วกรอกเพียงนิดเดียว</p>
+          </div>
+          <button className="text-button" onClick={() => navigate("/guide")}>
+            ดูวิธีใช้ <ArrowRight size={17} />
           </button>
         </div>
-        <div className="banner-graphic" aria-hidden="true">
-          <div className="graphic-ring">
-            <HeartGraphic />
-          </div>
-          <div className="graphic-mini top">
-            <Droplets size={22} />
-          </div>
-          <div className="graphic-mini bottom">
-            <Footprints size={22} />
-          </div>
-          <span className="graphic-dot a" />
-          <span className="graphic-dot b" />
+        <div className="start-actions">
+          {(
+            [
+              ["meal", "บันทึกอาหาร", "จดชื่อ หรือถ่ายรูปมื้อที่กิน", Utensils],
+              ["water", "บันทึกน้ำดื่ม", "เลือกปริมาณแล้วบันทึก", Droplets],
+              [
+                "activity",
+                "บันทึกกิจกรรม",
+                "เดิน ยืดเส้น หรือออกกำลัง",
+                Footprints,
+              ],
+              ["weight", "บันทึกน้ำหนัก", "ไม่บังคับ บันทึกเมื่อสะดวก", Scale],
+            ] as const
+          ).map(([kind, label, description, Icon]) => (
+            <button key={kind} className={kind} onClick={() => add(kind)}>
+              <span className="entry-icon">
+                <Icon size={24} />
+              </span>
+              <span>
+                <b>{label}</b>
+                <small>{description}</small>
+              </span>
+              <Plus size={19} />
+            </button>
+          ))}
         </div>
-      </div>
+        <p className="start-panel-note">
+          <Check size={16} /> วันที่และเวลาใส่ให้แล้ว แก้ไขย้อนหลังได้
+        </p>
+      </section>
       <div className="stats-grid">
         <Stat
           icon={Utensils}
@@ -248,27 +257,6 @@ export function Dashboard() {
           </section>
         </div>
         <div className="dashboard-aside">
-          <section className="card quick-actions-card">
-            <SectionTitle title="เติมบันทึกสักนิด" />
-            <div className="quick-grid">
-              {(
-                [
-                  ["meal", "มื้ออาหาร", Utensils],
-                  ["activity", "กิจกรรม", Footprints],
-                  ["water", "น้ำดื่ม", Droplets],
-                  ["weight", "น้ำหนัก", Scale],
-                ] as const
-              ).map(([kind, label, Icon]) => (
-                <button key={kind} className={kind} onClick={() => add(kind)}>
-                  <span className="entry-icon">
-                    <Icon size={22} />
-                  </span>
-                  {label}
-                  <Plus size={14} />
-                </button>
-              ))}
-            </div>
-          </section>
           <section className="card">
             <SectionTitle
               title="แผนวันนี้"
@@ -410,24 +398,5 @@ function Stat({
       </div>
       <small>{note}</small>
     </button>
-  );
-}
-function HeartGraphic() {
-  return (
-    <svg width="116" height="116" viewBox="0 0 116 116" fill="none">
-      <path
-        d="M58 91S20 69 20 44c0-24 29-29 38-10 9-19 38-14 38 10 0 25-38 47-38 47Z"
-        fill="#fff"
-        stroke="#278CF5"
-        strokeWidth="3"
-      />
-      <path
-        d="M22 59h22l8-18 12 35 8-17h24"
-        stroke="#35B99A"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

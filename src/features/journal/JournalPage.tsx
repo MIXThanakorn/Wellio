@@ -77,6 +77,16 @@ export function JournalPage() {
             >
               <ChevronRight size={19} />
             </button>
+            <button
+              className="button secondary today-button"
+              disabled={day === dayKey() && !allDates}
+              onClick={() => {
+                setDay(dayKey());
+                setAllDates(false);
+              }}
+            >
+              วันนี้
+            </button>
           </div>
           <label className="search-box">
             <Search size={18} />
@@ -93,7 +103,7 @@ export function JournalPage() {
               checked={allDates}
               onChange={(e) => setAllDates(e.target.checked)}
             />
-            ทุกวัน
+            ค้นหาทุกวัน
           </label>
         </div>
         <div className="tabs">

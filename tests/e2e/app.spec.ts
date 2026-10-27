@@ -116,7 +116,9 @@ test("activity, water, check-in and CSV export", async ({ page }) => {
     page.getByRole("heading", { name: "ความคืบหน้าของคุณ" }),
   ).toBeVisible();
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "ส่งออก CSV", exact: true }).click();
+  await page
+    .getByRole("button", { name: "ดาวน์โหลดบันทึก", exact: true })
+    .click();
   expect((await download).suggestedFilename()).toMatch(/fitlog-.*\.csv/);
 });
 test("plans and quiet-hour preferences are editable", async ({ page }) => {

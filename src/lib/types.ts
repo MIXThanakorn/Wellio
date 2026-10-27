@@ -15,6 +15,7 @@ export interface BaseRow {
   updated_at?: string;
 }
 export interface Meal extends BaseRow {
+  photo_path?: string | null;
   name: string;
   meal_type: MealType;
   eaten_at: string;

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import webpush from "npm:web-push@3.6.7";
 import { reminderState } from "../_shared/reminders.ts";
+import { maintainMealPhotos } from "../_shared/photos.ts";
 
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -50,6 +51,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Push not configured" }, 503);
   if (!equalToken(token, config.fitlog_cron_secret))
     return json({ error: "Unauthorized" }, 401);
+  const photoCleanup = await maintainMealPhotos(db);
   webpush.setVapidDetails(
     "https://alpbutepoqnbvbbnesit.supabase.co",
     config.fitlog_vapid_public,
@@ -180,5 +182,8 @@ Deno.serve(async (req: Request) => {
       }
     }
   }
-  return json({ sent, failed, skipped }, failed ? 207 : 200);
+  return json(
+    { sent, failed, skipped, photoCleanup },
+    failed || photoCleanup.failed ? 207 : 200,
+  );
 });

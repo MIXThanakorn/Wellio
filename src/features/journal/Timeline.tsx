@@ -11,6 +11,7 @@ import { kindIcons } from "./EntryForm";
 import { useUI } from "../../components/AppShell";
 import { useJournal } from "./useJournal";
 import { Empty, Modal, ErrorBox } from "../../components/ui";
+import { MealPhoto } from "../meals/MealPhoto";
 interface Item {
   id: string;
   kind: EntryKind;
@@ -134,7 +135,22 @@ export function Timeline({
   return (
     <>
       {!items.length ? (
-        <Empty action="เพิ่มบันทึกแรก" onAction={() => add(filter)} />
+        <Empty
+          title={
+            search
+              ? "ไม่พบบันทึกที่ค้นหา"
+              : day && day !== dayKey()
+                ? "ยังไม่มีบันทึกในวันที่เลือก"
+                : "ยังไม่มีบันทึกในวันนี้"
+          }
+          description={
+            search
+              ? "ลองเปลี่ยนคำค้น หรือเลือกค้นหาทุกวันเพื่อดูย้อนหลัง"
+              : "กดเพิ่มบันทึกเพื่อเริ่มจดอาหาร น้ำดื่ม หรือกิจกรรม"
+          }
+          action={search ? undefined : "เพิ่มบันทึกแรก"}
+          onAction={() => add(filter)}
+        />
       ) : (
         <div className="timeline">
           {items.map((item) => {
@@ -155,6 +171,14 @@ export function Timeline({
                   <h3>{item.title}</h3>
                   <p>{item.detail}</p>
                   {item.notes && <small>{item.notes}</small>}
+                  {item.kind === "meal" &&
+                    typeof item.row.photo_path === "string" && (
+                      <MealPhoto
+                        path={item.row.photo_path}
+                        name={item.title}
+                        compact
+                      />
+                    )}
                 </div>
                 <div className="entry-actions">
                   {item.kind === "meal" &&
@@ -165,6 +189,7 @@ export function Timeline({
                         onClick={() => void favorite(item)}
                       >
                         <Star size={16} />
+                        <span>เก็บโปรด</span>
                       </button>
                     )}
                   <button
@@ -173,6 +198,7 @@ export function Timeline({
                     onClick={() => add(item.kind, item.row)}
                   >
                     <Pencil size={16} />
+                    <span>แก้ไข</span>
                   </button>
                   <button
                     className="icon-button danger-text"
@@ -180,6 +206,7 @@ export function Timeline({
                     onClick={() => setDeleting(item)}
                   >
                     <Trash2 size={16} />
+                    <span>ลบ</span>
                   </button>
                 </div>
               </article>

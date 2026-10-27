@@ -86,10 +86,10 @@ function ReminderEditor({
     setError("");
     setPushBusy(true);
     try {
-      if (demo) throw new Error("เชื่อมบัญชีจริงก่อนเปิด push");
+      if (demo) throw new Error("เลือกบัญชีมิกหรือเนมก่อนเปิดการแจ้งเตือน");
       if (!vapidPublic)
         throw new Error(
-          "ยังไม่ได้ตั้งค่า Web Push ฝั่งเซิร์ฟเวอร์ ใช้การเตือนในแอปได้ก่อน",
+          "การแจ้งเตือนนอกแอปยังไม่พร้อม กรุณาแจ้งผู้ดูแล ระหว่างนี้ดูการเตือนในแอปได้",
         );
       const result = await Notification.requestPermission();
       setPermission(result);
@@ -120,7 +120,7 @@ function ReminderEditor({
         { onConflict: "owner_user_id,endpoint" },
       );
       if (error) throw error;
-      notify("เชื่อมต่อ push สำหรับอุปกรณ์นี้แล้ว");
+      notify("เปิดการแจ้งเตือนบนอุปกรณ์นี้แล้ว");
     } catch (e) {
       setError(e instanceof Error ? e.message : "เชื่อมต่อไม่สำเร็จ");
     } finally {
@@ -144,7 +144,7 @@ function ReminderEditor({
         }
         await sub.unsubscribe();
       }
-      notify("ปิด push ของอุปกรณ์นี้แล้ว");
+      notify("ปิดการแจ้งเตือนบนอุปกรณ์นี้แล้ว");
     } catch (e) {
       setError(e instanceof Error ? e.message : "ปิดไม่สำเร็จ");
     } finally {
@@ -350,8 +350,8 @@ function ReminderEditor({
               {demo
                 ? "โหมดทดลองใช้การเตือนในแอปเท่านั้น"
                 : !vapidPublic
-                  ? "การเตือนในแอปพร้อมใช้ ส่วน push ต้องตั้งค่า VAPID และงานส่งตามเวลาก่อนเปิดใช้งาน"
-                  : "Push ต้องใช้ HTTPS และการเชื่อมต่ออินเทอร์เน็ต บน iPhone/iPad ให้ติดตั้งที่หน้าจอโฮมก่อน การส่งอาจล่าช้าตามระบบของอุปกรณ์"}
+                  ? "ดูการเตือนในแอปได้แล้ว ส่วนการเตือนนอกแอปยังไม่พร้อม กรุณาแจ้งผู้ดูแล"
+                  : "การแจ้งเตือนต้องเชื่อมต่ออินเทอร์เน็ต บน iPhone/iPad ให้เพิ่มเว็บลงหน้าจอโฮมก่อน การส่งอาจล่าช้าตามอุปกรณ์"}
             </p>
           </div>
           <div className="button-row">
@@ -366,7 +366,7 @@ function ReminderEditor({
               }
               onClick={() => void subscribe()}
             >
-              เปิด push อุปกรณ์นี้
+              เปิดการแจ้งเตือน
             </button>
             <button
               className="button secondary"
@@ -380,7 +380,7 @@ function ReminderEditor({
               disabled={!supported || demo || pushBusy}
               onClick={() => void unsubscribe()}
             >
-              ยกเลิก push อุปกรณ์นี้
+              ปิดการแจ้งเตือน
             </button>
           </div>
           <p className="help">

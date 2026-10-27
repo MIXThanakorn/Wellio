@@ -144,7 +144,7 @@ try {
     ).toHaveCount(0);
     results.push(`${account.slug}: selected-session RLS and persisted journal`);
     await page
-      .getByRole("button", { name: "ออกจาก session", exact: true })
+      .getByRole("button", { name: "เปลี่ยนคนหรือออกจากบัญชี", exact: true })
       .click();
     await expect(
       page.getByRole("button", { name: "เลือกบัญชี มิก", exact: true }),
@@ -175,7 +175,7 @@ try {
       `${account.slug}: same-link account switch uses the other account without stale cache`,
     );
     await page
-      .getByRole("button", { name: "ออกจาก session", exact: true })
+      .getByRole("button", { name: "เปลี่ยนคนหรือออกจากบัญชี", exact: true })
       .click();
     await expect(
       page.getByRole("button", { name: "เลือกบัญชี มิก", exact: true }),

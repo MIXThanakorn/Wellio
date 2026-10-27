@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:test": "node scripts/test-rls.mjs",
-    "test:sessions": "node scripts/test-live-sessions.mjs"
+    "test:sessions": "node scripts/test-live-sessions.mjs",
+    "test:photos": "node scripts/test-live-photos.mjs"
   },
   "keywords": [],
   "author": "",

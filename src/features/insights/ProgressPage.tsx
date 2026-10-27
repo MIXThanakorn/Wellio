@@ -73,7 +73,7 @@ export function ProgressPage() {
         </div>
         <button className="button secondary" onClick={() => downloadCSV(data)}>
           <Download size={18} />
-          ส่งออก CSV
+          ดาวน์โหลดบันทึก
         </button>
       </div>
       <div className="range-row">

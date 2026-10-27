@@ -1,0 +1,26 @@
+{
+  "checkedAt": "2026-10-27T02:02:39.602Z",
+  "passed": true,
+  "results": [
+    "Real UI upload, automatic resize and signed image display",
+    "Photo persists after reload",
+    "Selected-owner download allowed; foreign download and signing denied",
+    "Foreign upload/delete cannot change the owner photo",
+    "Database rejects attaching a foreign owner photo",
+    "Bucket does not serve public image URLs",
+    "Replace photo retains meal and removes its old Storage object",
+    "Deleting meal queues its last image for Storage API maintenance"
+  ],
+  "testPhotoPaths": [
+    "f540f925-0be6-43c9-88bf-0bb5d0a227a1/02ae3807-3c45-41c8-90de-7a4d89eca9fe.webp",
+    "f540f925-0be6-43c9-88bf-0bb5d0a227a1/f3ecac03-5d80-4d67-9afb-1bfaac134705.webp"
+  ],
+  "maintenancePending": false,
+  "maintenance": {
+    "status": 200,
+    "removed": 2,
+    "failed": false,
+    "queueRemaining": 0,
+    "storedTestPhotosRemaining": 0
+  }
+}

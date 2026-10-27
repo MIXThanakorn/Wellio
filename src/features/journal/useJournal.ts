@@ -3,6 +3,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { supabase } from "../../lib/supabase";
 import { tables, type Journal, type Preferences } from "../../lib/types";
 import { makeDemo } from "./demo";
+import { removeMealPhoto } from "../meals/photos";
 type Collection = Exclude<keyof Journal, "preferences">;
 const demoKey = "fitlog-demo-data-v1";
 function readDemo(): Journal {
@@ -83,7 +84,7 @@ export function useJournal() {
       action: "save" | "delete";
       value: Record<string, unknown>;
     }) => {
-      if (!owner) throw new Error("กรุณายืนยันอุปกรณ์ก่อน");
+      if (!owner) throw new Error("กรุณาเลือกชื่อมิกหรือเนมก่อนบันทึก");
       if (!navigator.onLine && !demo)
         throw new Error(
           "ออฟไลน์อยู่ ข้อมูลในฟอร์มยังอยู่ กรุณาเชื่อมต่อแล้วบันทึกอีกครั้ง",
@@ -102,6 +103,11 @@ export function useJournal() {
             unknown
           >[];
           const id = input.value.id;
+          if (input.action === "delete" && input.collection === "meals") {
+            const removed = list.find((row) => row.id === id);
+            if (typeof removed?.photo_path === "string")
+              await removeMealPhoto(removed.photo_path, owner, true);
+          }
           if (input.action === "delete")
             data[input.collection] = list.filter((r) => r.id !== id) as never;
           else {
@@ -153,7 +159,7 @@ export function useJournal() {
         throw new Error(
           error.code === "23505"
             ? "มีบันทึกสำหรับวันนี้แล้ว กรุณาแก้ไขรายการเดิม"
-            : error.message,
+            : "บันทึกไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง ข้อมูลในฟอร์มยังอยู่",
         );
       if (!data?.length)
         throw new Error("บันทึกไม่สำเร็จ อาจไม่มีสิทธิ์หรือรายการถูกลบแล้ว");

@@ -8,6 +8,7 @@ import {
   Heart,
   Check,
   ExternalLink,
+  BookOpen,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +19,7 @@ import { supabase } from "../../lib/supabase";
 import { disableOtherPushDevices } from "../../lib/push";
 import { downloadCSV } from "../../lib/export";
 import { ErrorBox, Modal } from "../../components/ui";
+import { clearDemoPhotos } from "../meals/photos";
 export function SettingsPage() {
   const { profile, demo, leave, reloadProfile, session } = useAuth();
   const journal = useJournal();
@@ -40,7 +42,7 @@ export function SettingsPage() {
     try {
       if (demo) {
         throw new Error(
-          "การตั้งค่าโปรไฟล์จริงจะเปิดให้ใช้หลังยืนยันอุปกรณ์ โหมดทดลองใช้ค่าตัวอย่าง",
+          "เลือกบัญชีมิกหรือเนมก่อนแก้ไขชื่อและการตั้งค่าส่วนตัว",
         );
       }
       if (!name.trim() || name.trim().length > 80)
@@ -76,6 +78,7 @@ export function SettingsPage() {
     try {
       if (confirmation !== "ลบข้อมูลของฉัน") return;
       if (demo) {
+        await clearDemoPhotos();
         localStorage.removeItem("fitlog-demo-data-v1");
         await leave();
         navigate("/");
@@ -124,7 +127,9 @@ export function SettingsPage() {
                   ? "ผูกอีเมลส่วนตัวแล้ว"
                   : "อีเมลส่วนตัว: ยังไม่เชื่อม · เชื่อมภายหลังได้"}
               </span>
-              <small>session จำอยู่บนอุปกรณ์นี้ และต่ออายุอัตโนมัติ</small>
+              <small>
+                ครั้งต่อไปเปิดเว็บได้เลย ระบบจะจำชื่อของคุณบนอุปกรณ์นี้
+              </small>
             </div>
           )}
           <form className="form-stack" onSubmit={save}>
@@ -159,7 +164,7 @@ export function SettingsPage() {
             </label>
             <label>
               เขตเวลา
-              <input readOnly value="Asia/Bangkok (UTC+07:00)" />
+              <input readOnly value="เวลาไทย" />
             </label>
             <button className="button primary" disabled={busy || demo}>
               <Check size={17} />
@@ -175,10 +180,18 @@ export function SettingsPage() {
               อุปกรณ์และความเป็นส่วนตัว
             </h2>
             <p>
-              ใช้ลิงก์เดียวสำหรับมิกและเนม เลือกบัญชีครั้งแรก แล้วระบบจะจำ
-              session ไว้จนกว่าจะออกจากบัญชี
+              ใช้ลิงก์เดียวสำหรับมิกและเนม เลือกชื่อครั้งแรก
+              แล้วระบบจะจำไว้จนกว่าจะออกจากบัญชี
             </p>
             <div className="settings-actions">
+              <button
+                className="settings-action"
+                onClick={() => navigate("/guide")}
+              >
+                <BookOpen size={19} />
+                <span>วิธีใช้ Wellio แบบเข้าใจง่าย</span>
+                <ExternalLink size={16} />
+              </button>
               <button
                 className="settings-action"
                 onClick={() => setPrivacy(true)}
@@ -193,7 +206,7 @@ export function SettingsPage() {
                 onClick={() => setRevoke(true)}
               >
                 <Smartphone size={19} />
-                <span>ยกเลิก session อุปกรณ์อื่น</span>
+                <span>ออกจากบัญชีบนอุปกรณ์อื่น</span>
               </button>
               <button
                 className="settings-action"
@@ -213,20 +226,23 @@ export function SettingsPage() {
               </button>
             </div>
             <p className="help">
-              ออกจาก session เพื่อกลับไปเลือกมิกหรือเนมได้เสมอ Session
-              อื่นที่ยกเลิกแล้วอาจใช้ access token เดิมได้จนหมดอายุ
+              กดออกจากอุปกรณ์นี้เพื่อกลับไปเลือกมิกหรือเนม
+              อุปกรณ์อื่นอาจยังใช้งานได้ช่วงสั้นๆ หลังสั่งให้ออก
             </p>
           </section>
           <section className="card">
             <h2>จัดการข้อมูลของคุณ</h2>
-            <p>ส่งออกบันทึกทั้งหมดของบัญชีนี้เป็น CSV</p>
+            <p>
+              เก็บสำเนาบันทึกไว้ในเครื่อง เปิดด้วย Excel ได้ (ไฟล์ CSV
+              ไม่รวมรูปอาหาร)
+            </p>
             <button
               className="button secondary"
               disabled={!journal.data}
               onClick={() => journal.data && downloadCSV(journal.data)}
             >
               <Download size={17} />
-              ดาวน์โหลดข้อมูล CSV
+              ดาวน์โหลดบันทึก
             </button>
             <hr />
             <button
@@ -254,11 +270,11 @@ export function SettingsPage() {
           onClose={() => setDeleting(false)}
         >
           <p>
-            อาหาร กิจกรรม น้ำ น้ำหนัก แผน อาหารโปรด
+            อาหาร รูปอาหาร กิจกรรม น้ำ น้ำหนัก แผน อาหารโปรด
             และการเตือนของคุณจะถูกลบอย่างถาวร โปรไฟล์ของคุณยังอยู่
             และไม่กระทบข้อมูลอีกคน
           </p>
-          <p>แนะนำให้ส่งออก CSV ก่อนลบ</p>
+          <p>แนะนำให้ดาวน์โหลดบันทึกเก็บไว้ก่อนลบ</p>
           <label>
             พิมพ์ “ลบข้อมูลของฉัน” เพื่อยืนยัน
             <input
@@ -287,13 +303,13 @@ export function SettingsPage() {
       )}
       {revoke && (
         <Modal
-          title="ยกเลิก session อุปกรณ์อื่น?"
+          title="ออกจากบัญชีบนอุปกรณ์อื่น?"
           onClose={() => setRevoke(false)}
         >
           <p>
-            อุปกรณ์อื่นจะต่ออายุ session ไม่ได้ และต้องยืนยันใหม่หลัง access
-            token หมดอายุ อุปกรณ์นี้ยังใช้งานต่อได้ และระบบจะปิด push
-            ของอุปกรณ์อื่นด้วย
+            ระบบจะให้อุปกรณ์อื่นออกจากบัญชีนี้เมื่อสิทธิ์เดิมหมดอายุ
+            ซึ่งอาจใช้เวลาสักครู่ และหยุดส่งการแจ้งเตือนไปยังอุปกรณ์เหล่านั้น
+            อุปกรณ์นี้ยังใช้งานต่อได้
           </p>
           <div className="dialog-actions">
             <button
@@ -313,7 +329,7 @@ export function SettingsPage() {
                   if (error) setError(error.message);
                   else {
                     setRevoke(false);
-                    notify("ยกเลิก session อื่นแล้ว");
+                    notify("สั่งให้อุปกรณ์อื่นออกจากบัญชีแล้ว");
                   }
                 } catch (e) {
                   setError(e instanceof Error ? e.message : "ยกเลิกไม่สำเร็จ");
@@ -329,7 +345,7 @@ export function SettingsPage() {
         <Modal title="ความเป็นส่วนตัวของคุณ" onClose={() => setPrivacy(false)}>
           <div className="privacy-copy">
             <p>
-              Wellio เก็บชื่อ บันทึกอาหาร กิจกรรม น้ำดื่ม น้ำหนัก แผน
+              Wellio เก็บชื่อ บันทึกอาหาร กิจกรรม น้ำดื่ม น้ำหนัก แผน รูปอาหาร
               และการตั้งค่าใน Supabase โปรเจ็กต์ Wellio โดยมี RLS
               แยกข้อมูลตามบัญชี
             </p>
@@ -342,12 +358,12 @@ export function SettingsPage() {
             </p>
             <p>
               Session เก็บไว้ในเบราว์เซอร์ของอุปกรณ์นี้ ไม่ควรใช้อุปกรณ์สาธารณะ
-              สำหรับข้อมูลทดลอง เก็บแยกใน localStorage และล้างได้
+              สำหรับข้อมูลทดลอง เก็บในเบราว์เซอร์นี้และล้างได้
             </p>
             <p>
-              Push เป็นตัวเลือก หากเปิดไว้ ระบบจะเก็บ endpoint
-              และกุญแจของอุปกรณ์เพื่อส่งข้อความเตือนทั่วไป
-              ไม่มีรายละเอียดน้ำหนักหรือมื้ออาหารในข้อความ push
+              การแจ้งเตือนเปิดหรือปิดได้ตามต้องการ หากเปิดไว้
+              ระบบจะเก็บข้อมูลที่จำเป็นสำหรับส่งข้อความเตือนไปยังอุปกรณ์นี้
+              ไม่มีรายละเอียดน้ำหนักหรือมื้ออาหารในข้อความแจ้งเตือน
             </p>
             <p>
               แอปนี้ไม่ใช่บริการการแพทย์

@@ -4,14 +4,18 @@ export function Modal({
   title,
   children,
   onClose,
+  busy = false,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
+  busy?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const closeHandler = useRef(onClose);
-  closeHandler.current = onClose;
+  closeHandler.current = () => {
+    if (!busy) onClose();
+  };
   useEffect(() => {
     const dialog = ref.current!;
     dialog.showModal();
@@ -30,12 +34,17 @@ export function Modal({
       ref={ref}
       className="modal"
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        if (e.target === ref.current && !busy) onClose();
       }}
     >
       <header>
         <h2>{title}</h2>
-        <button aria-label="ปิด" className="icon-button" onClick={onClose}>
+        <button
+          aria-label="ปิด"
+          className="icon-button"
+          disabled={busy}
+          onClick={onClose}
+        >
           <X size={22} />
         </button>
       </header>

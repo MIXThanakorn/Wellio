@@ -1,0 +1,27 @@
+begin;
+select set_config('test.mix',(select user_id::text from public.profiles where slug='mix'),true);
+select set_config('test.name',(select user_id::text from public.profiles where slug='name'),true);
+select set_config('test.photo_one',current_setting('test.mix')||'/'||gen_random_uuid()::text||'.webp',true);
+select set_config('test.photo_two',current_setting('test.mix')||'/'||gen_random_uuid()::text||'.webp',true);
+select set_config('test.meal_id',gen_random_uuid()::text,true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub',current_setting('test.mix'),true);
+insert into public.meal_entries(id,owner_user_id,name,meal_type,eaten_at,photo_path) values(current_setting('test.meal_id')::uuid,current_setting('test.mix')::uuid,'__wellio_photo_policy_test__','other',now(),current_setting('test.photo_one'));
+do $$ begin
+ begin update public.meal_entries set photo_path=current_setting('test.name')||'/'||gen_random_uuid()::text||'.webp' where id=current_setting('test.meal_id')::uuid;raise exception 'A foreign owner photo was accepted';exception when check_violation then null;end;
+end $$;
+update public.meal_entries set photo_path=current_setting('test.photo_two') where id=current_setting('test.meal_id')::uuid;
+do $$ begin if not exists(select 1 from public.meal_photo_cleanup where photo_path=current_setting('test.photo_one')) then raise exception 'Replacing photo did not queue cleanup';end if;end $$;
+insert into public.meal_photo_cleanup(photo_path,owner_user_id) values(current_setting('test.photo_two'),current_setting('test.mix')::uuid);
+select set_config('request.jwt.claim.sub',current_setting('test.name'),true);
+do $$ begin if exists(select 1 from public.meal_photo_cleanup where photo_path in(current_setting('test.photo_one'),current_setting('test.photo_two'))) then raise exception 'Foreign cleanup metadata visible';end if;end $$;
+set local role service_role;
+do $$ begin if exists(select 1 from public.pending_meal_photo_cleanup() where photo_path=current_setting('test.photo_two')) then raise exception 'Cleanup would remove a still-referenced photo';end if;end $$;
+set local role authenticated;
+select set_config('request.jwt.claim.sub',current_setting('test.mix'),true);
+delete from public.meal_entries where id=current_setting('test.meal_id')::uuid;
+set local role service_role;
+do $$ begin if not exists(select 1 from public.pending_meal_photo_cleanup() where photo_path=current_setting('test.photo_two')) then raise exception 'Deleted meal photo was not queued';end if;end $$;
+reset role;
+select 'PASS: owner-bound photo paths, replacement/deletion cleanup, queue RLS and active-file protection' as result;
+rollback;

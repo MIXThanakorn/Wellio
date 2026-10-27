@@ -14,6 +14,7 @@ import {
   ArrowRight,
   LogOut,
   X,
+  BookOpen,
 } from "lucide-react";
 import { useAuth } from "../features/auth/AuthProvider";
 import { EntryForm, kindIcons } from "../features/journal/EntryForm";
@@ -108,6 +109,10 @@ export function AppShell() {
               <Settings size={21} />
               โปรไฟล์และตั้งค่า
             </NavLink>
+            <NavLink to="/guide">
+              <BookOpen size={21} />
+              วิธีใช้ Wellio
+            </NavLink>
           </nav>
           <div className="sidebar-note">
             <span className="little-leaf">✳</span>
@@ -146,6 +151,7 @@ export function AppShell() {
                       "/reminders": "การแจ้งเตือน",
                       "/settings": "โปรไฟล์และตั้งค่า",
                       "/activities": "กิจกรรม",
+                      "/guide": "วิธีใช้ Wellio",
                     } as Record<string, string>
                   )[location.pathname] ||
                   "บันทึก"}
@@ -154,17 +160,21 @@ export function AppShell() {
             <div className="topbar-actions">
               <button
                 className="logout-button"
-                aria-label="ออกจาก session"
+                aria-label="เปลี่ยนคนหรือออกจากบัญชี"
                 disabled={leaving}
                 onClick={() => void logout()}
               >
                 <LogOut size={19} />
-                <span>{leaving ? "กำลังออก…" : "ออกจาก session"}</span>
+                <span>{leaving ? "กำลังออก…" : "เปลี่ยนคน / ออก"}</span>
               </button>
-              <span className="privacy-tag">
+              <span className="privacy-tag current-account">
                 <UsersRound size={15} />
-                บันทึกแยกบัญชี
+                กำลังใช้: {profile?.display_name}
               </span>
+              <NavLink className="topbar-help" to="/guide">
+                <BookOpen size={18} />
+                <span>วิธีใช้</span>
+              </NavLink>
               <button
                 className="icon-button notification-button"
                 aria-label="การแจ้งเตือน"
@@ -194,7 +204,8 @@ export function AppShell() {
           )}
           {!online && (
             <div className="offline-banner" role="status">
-              ออฟไลน์ · ดูข้อมูลที่โหลดไว้ได้ โปรดเชื่อมต่อเพื่อบันทึกข้อมูลจริง
+              อินเทอร์เน็ตขาดหาย · ดูข้อมูลที่เปิดไว้ได้
+              เชื่อมต่ออีกครั้งก่อนบันทึก
             </div>
           )}
           <main className="page-content" id="main-content">
@@ -218,7 +229,7 @@ export function AppShell() {
             <span>
               <Plus size={25} />
             </span>
-            เพิ่ม
+            เพิ่มบันทึก
           </button>
           <NavLink to="/plans">
             <CalendarCheck2 size={21} />
@@ -226,7 +237,7 @@ export function AppShell() {
           </NavLink>
           <NavLink to="/settings">
             <Settings size={21} />
-            <span>ฉัน</span>
+            <span>ตั้งค่า</span>
           </NavLink>
         </nav>
         {sheet && (
@@ -238,12 +249,25 @@ export function AppShell() {
                   <button
                     key={kind}
                     className={`quick-option ${kind}`}
+                    aria-label={`เพิ่ม${kindLabels[kind]}`}
                     onClick={() => add(kind)}
                   >
                     <span className="entry-icon">
                       <Icon size={24} />
                     </span>
-                    <b>เพิ่ม{kindLabels[kind]}</b>
+                    <span className="quick-option-copy">
+                      <b>เพิ่ม{kindLabels[kind]}</b>
+                      <small>
+                        {
+                          {
+                            meal: "จดชื่ออาหาร หรือแนบรูปมื้อที่กิน",
+                            water: "เลือกปริมาณน้ำที่เพิ่งดื่ม",
+                            activity: "จดกิจกรรมและเวลาที่ทำ",
+                            weight: "บันทึกเมื่อสะดวก ไม่บังคับ",
+                          }[kind]
+                        }
+                      </small>
+                    </span>
                     <ArrowRight size={18} />
                   </button>
                 );
