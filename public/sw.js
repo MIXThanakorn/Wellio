@@ -1,0 +1,7 @@
+const CACHE = 'fitlog-shell-v1';
+self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['/icon.svg', '/manifest.webmanifest']))); self.skipWaiting(); });
+self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
+// Personal API responses and auth tokens are never stored in the service-worker cache.
+self.addEventListener('fetch', event => { const url = new URL(event.request.url); if (url.origin === self.location.origin && ['/icon.svg','/manifest.webmanifest'].includes(url.pathname)) event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request))); });
+self.addEventListener('push', event => { let data = {title:'FitLog',body:'อยากอัปเดตบันทึกวันนี้ไหม?'}; try { Object.assign(data,event.data.json()); } catch {} event.waitUntil(self.registration.showNotification(data.title,{body:data.body,icon:'/icon.svg',tag:'fitlog-meal-reminder',data:{url:'/reminders'}})); });
+self.addEventListener('notificationclick', event => { event.notification.close(); event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(async clients => { const existing=clients.find(c=>new URL(c.url).origin===self.location.origin); if(existing){await existing.navigate('/reminders');return existing.focus();}return self.clients.openWindow('/reminders'); })); });

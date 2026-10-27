@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-10-27T00:03:54.453Z",
+  "project": "lessweight",
+  "checks": [
+    {
+      "check": "anonymous denied /rest/v1/profiles",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "check": "anonymous denied /rest/v1/meal_entries",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "check": "anonymous denied /rest/v1/reminder_deliveries",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "check": "missing cron token denied",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "check": "invalid cron token denied",
+      "status": 401,
+      "passed": true
+    }
+  ]
+}

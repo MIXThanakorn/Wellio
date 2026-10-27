@@ -1,0 +1,1 @@
+create index delivery_owner_subscription_idx on public.reminder_deliveries(owner_user_id,subscription_id);
