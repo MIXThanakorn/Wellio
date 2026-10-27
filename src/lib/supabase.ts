@@ -1,4 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
+// Normalize old device-link bookmarks to the single application URL.
+if (new URLSearchParams(window.location.hash.slice(1)).has("device"))
+  window.history.replaceState(
+    null,
+    "",
+    window.location.pathname + window.location.search,
+  );
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // A service key must never be accepted by a browser build.

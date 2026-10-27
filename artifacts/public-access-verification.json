@@ -1,6 +1,6 @@
 {
-  "checkedAt": "2026-10-27T00:03:54.453Z",
-  "project": "lessweight",
+  "checkedAt": "2026-10-27T00:33:39.378Z",
+  "project": "Wellio",
   "checks": [
     {
       "check": "anonymous denied /rest/v1/profiles",

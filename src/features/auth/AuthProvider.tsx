@@ -37,14 +37,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabase) return;
     let alive = true;
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (alive) {
-        setSession(data.session);
-        currentIdentity.current = data.session?.user.id;
-        if (error) setError(error.message);
-        setLoading(false);
-      }
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (alive) {
+          setSession(data.session);
+          currentIdentity.current = data.session?.user.id;
+          if (error) setError(error.message);
+          setLoading(false);
+        }
+      })
+      .catch((error: unknown) => {
+        if (alive) {
+          setError(
+            error instanceof Error ? error.message : "เชื่อมอุปกรณ์ไม่สำเร็จ",
+          );
+          setLoading(false);
+        }
+      });
     const { data } = supabase.auth.onAuthStateChange((_event, next) => {
       if (alive) {
         if (next?.user.id !== currentIdentity.current) {
@@ -105,14 +115,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
   const leave = async () => {
     if (session && supabase) {
-      await disconnectCurrentPush(session.user.id);
+      try {
+        await disconnectCurrentPush(session.user.id);
+      } catch {
+        console.warn(
+          "Push cleanup could not finish; sign-out will still remove the account session.",
+        );
+      }
       const { error } = await supabase.auth.signOut({ scope: "local" });
-      if (error) throw error;
+      if (error) {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) throw error;
+        console.warn(
+          "Session removed locally; server-side revocation could not be confirmed.",
+        );
+      }
     }
     sessionStorage.removeItem("fitlog-demo");
     setDemo(false);
     setSession(null);
     setProfile(null);
+    setError("");
     client.clear();
   };
   return (

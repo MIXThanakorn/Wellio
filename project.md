@@ -1,34 +1,39 @@
-# FitLog — Product & Technical Specification
+# Wellio — Product & Technical Specification
 
-**Status:** Planning / MVP · **Audience:** Mix (มิก) and Name (เนม) only · **Platform:** Responsive web app / installable PWA · **Language:** Thai first
+**Status:** MVP implemented · **Audience:** Mix (มิก) and Name (เนม) only · **Platform:** Responsive web app / installable PWA · **Language:** Thai first
+
+**Latest confirmed implementation (27 October 2026):** Product and Supabase project name are **Wellio**. Use one common URL. Without a session, let the visitor click Mix or Name and immediately create a session for that fixed account, without email, password, PIN or a private link. With a session, restore that account automatically. A visible sign-out button clears the local session and returns to the picker. The owner explicitly accepted that anyone with the website link can select either account and access both accounts' data. This intentionally supersedes the earlier private-enrollment and M1-only instructions below. RLS still scopes each selected session to its owner, but does not verify which human selected the account. Preserve the existing two account UUIDs for later email linking.
 
 ## 1. Product purpose
+
 A lightweight, private wellness journal for two people to record meals, movement, weekly weight check-ins (optional), and everyday routines. Provide helpful summaries, scheduling, and gentle reminders. The product is for practical self-management, **not** rapid weight loss or medical treatment.
 
 ## 2. Scope & priorities
-| Priority | Feature | Acceptance behavior |
-|---|---|---|
-| P0 | Two private profiles | Each person sees only their own private entries |
-| P0 | Food journal | Add, edit, delete, search by day/meal type; time of last meal tracked |
-| P0 | Activity journal | Log type, duration, time, notes; edit/delete |
-| P0 | Weekly check-in | Optional weekly weight entry; edit/delete; trend view without pressure |
-| P0 | Home dashboard | Today’s entries, quick add, weekly summary, reminder state |
-| P0 | Calendar | Daily timeline and week/month view |
-| P0 | Responsive UI | Mobile first; tablet/desktop usable |
-| P0 | Data security | RLS + secure per-device profile authorization |
-| P1 | Meal-gap reminder | User-configured interval, quiet hours, opt-in notifications |
-| P1 | Plans | Editable weekly activity and meal-routine schedule |
-| P1 | Hydration journal | Quick-add water, optional daily preference |
-| P1 | History & trends | Activity minutes, check-ins, consistency, time filters |
-| P1 | Export/delete | CSV export and per-profile data deletion |
-| P2 | Favorite meals | Reuse frequently entered items |
-| P2 | Photo attachments | Supabase Storage with private bucket and policies |
-| P2 | PWA offline | Read recent cached data and queue safe writes if feasible |
-| P2 | Optional shared plan | Explicitly shared routine items only, no automatic private-data sharing |
+
+| Priority | Feature              | Acceptance behavior                                                     |
+| -------- | -------------------- | ----------------------------------------------------------------------- |
+| P0       | Two private profiles | Each person sees only their own private entries                         |
+| P0       | Food journal         | Add, edit, delete, search by day/meal type; time of last meal tracked   |
+| P0       | Activity journal     | Log type, duration, time, notes; edit/delete                            |
+| P0       | Weekly check-in      | Optional weekly weight entry; edit/delete; trend view without pressure  |
+| P0       | Home dashboard       | Today’s entries, quick add, weekly summary, reminder state              |
+| P0       | Calendar             | Daily timeline and week/month view                                      |
+| P0       | Responsive UI        | Mobile first; tablet/desktop usable                                     |
+| P0       | Data security        | RLS + secure per-device profile authorization                           |
+| P1       | Meal-gap reminder    | User-configured interval, quiet hours, opt-in notifications             |
+| P1       | Plans                | Editable weekly activity and meal-routine schedule                      |
+| P1       | Hydration journal    | Quick-add water, optional daily preference                              |
+| P1       | History & trends     | Activity minutes, check-ins, consistency, time filters                  |
+| P1       | Export/delete        | CSV export and per-profile data deletion                                |
+| P2       | Favorite meals       | Reuse frequently entered items                                          |
+| P2       | Photo attachments    | Supabase Storage with private bucket and policies                       |
+| P2       | PWA offline          | Read recent cached data and queue safe writes if feasible               |
+| P2       | Optional shared plan | Explicitly shared routine items only, no automatic private-data sharing |
 
 **Not in MVP:** social feed, public leaderboard, chat, AI photo calorie estimation, paid subscriptions, complex nutrition database, automatic medical coaching, or mandatory calorie counting.
 
 ## 3. Core user journeys
+
 1. Open installed app → secure device session restores profile → dashboard shows today's entries.
 2. Tap `+` → record meal and its time → timeline and last-meal timestamp update.
 3. Tap `+` → record walk/workout duration → weekly activity summary updates.
@@ -38,6 +43,7 @@ A lightweight, private wellness journal for two people to record meals, movement
 7. Open plans → customize activities and rest days → mark completed when desired.
 
 ## 4. Architecture
+
 ```
 React + TypeScript + Vite (mobile-first PWA)
   ├── UI / Router / TanStack Query / Zod forms
@@ -53,7 +59,9 @@ Supabase
 ```
 
 ### No-login UX without public data exposure
+
 **Important:** Removing the login UI does not remove the need for access control. A public URL plus `profile_id = mix/name` is not secure; neither is storing a shared secret in frontend source. Proposed approach:
+
 - Provision exactly two Supabase Auth identities (one per person), and use an initial **one-time private device enrollment** or secure invite/verification flow to establish a session without a conventional login page. The exact enrollment design should be confirmed with the agent before implementation.
 - Bind database ownership to `auth.uid()` through an authenticated profile mapping. Do not permit the client to self-assign another person's ownership.
 - Use short-lived enrollment codes or signed invites validated **server-side**, rate-limited, one-time, expiring, and never shipped as frontend environment variables.
@@ -62,27 +70,30 @@ Supabase
 - Supabase anon/publishable key is safe to expose with correct RLS; `service_role` and push secrets are server-only.
 
 ## 5. Proposed database schema
+
 Every private row should have an `owner_user_id uuid not null` referencing the authenticated Supabase identity, with policies checking `owner_user_id = auth.uid()`.
 
-| Table | Essential fields |
-|---|---|
-| `profiles` | `user_id uuid PK`, `display_name text`, `timezone text default 'Asia/Bangkok'`, `created_at` |
-| `meal_entries` | `id uuid PK`, `owner_user_id`, `eaten_at timestamptz`, `meal_type`, `name`, `portion_text?`, `notes?`, `photo_path?`, `created_at`, `updated_at` |
-| `activity_entries` | `id`, `owner_user_id`, `started_at timestamptz`, `activity_type`, `duration_minutes`, `effort?`, `notes?`, timestamps |
-| `weight_checkins` | `id`, `owner_user_id`, `checkin_date date`, `weight_kg numeric`, `notes?`, timestamps; unique `(owner_user_id, checkin_date)` |
-| `water_entries` | `id`, `owner_user_id`, `consumed_at timestamptz`, `amount_ml int`, timestamps |
-| `routine_plans` | `id`, `owner_user_id`, `title`, `category`, `days_of_week int[]`, `local_time?`, `duration_minutes?`, `is_active`, timestamps |
-| `plan_completions` | `id`, `owner_user_id`, `plan_id`, `completed_at`, `notes?` |
+| Table                  | Essential fields                                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `profiles`             | `user_id uuid PK`, `display_name text`, `timezone text default 'Asia/Bangkok'`, `created_at`                                                      |
+| `meal_entries`         | `id uuid PK`, `owner_user_id`, `eaten_at timestamptz`, `meal_type`, `name`, `portion_text?`, `notes?`, `photo_path?`, `created_at`, `updated_at`  |
+| `activity_entries`     | `id`, `owner_user_id`, `started_at timestamptz`, `activity_type`, `duration_minutes`, `effort?`, `notes?`, timestamps                             |
+| `weight_checkins`      | `id`, `owner_user_id`, `checkin_date date`, `weight_kg numeric`, `notes?`, timestamps; unique `(owner_user_id, checkin_date)`                     |
+| `water_entries`        | `id`, `owner_user_id`, `consumed_at timestamptz`, `amount_ml int`, timestamps                                                                     |
+| `routine_plans`        | `id`, `owner_user_id`, `title`, `category`, `days_of_week int[]`, `local_time?`, `duration_minutes?`, `is_active`, timestamps                     |
+| `plan_completions`     | `id`, `owner_user_id`, `plan_id`, `completed_at`, `notes?`                                                                                        |
 | `reminder_preferences` | `owner_user_id PK`, `enabled`, `meal_gap_minutes`, `quiet_start`, `quiet_end`, `timezone`, `snoozed_until?`, `last_notified_meal_at?`, timestamps |
-| `push_subscriptions` | `id`, `owner_user_id`, `endpoint` (encrypted/protected), `p256dh`, `auth_secret`, `device_label?`, `enabled`, timestamps |
-| `favorite_meals` | `id`, `owner_user_id`, `name`, `meal_type?`, `portion_text?`, timestamps |
+| `push_subscriptions`   | `id`, `owner_user_id`, `endpoint` (encrypted/protected), `p256dh`, `auth_secret`, `device_label?`, `enabled`, timestamps                          |
+| `favorite_meals`       | `id`, `owner_user_id`, `name`, `meal_type?`, `portion_text?`, timestamps                                                                          |
 
 Use appropriate CHECK constraints: positive reasonable duration and water volume, valid meal types, positive numeric check-ins, and no impossible dates. Avoid arbitrary assumptions about a person's body. Index `(owner_user_id, eaten_at desc)`, `(owner_user_id, started_at desc)`, `(owner_user_id, checkin_date desc)`, and subscription/reminder lookup fields. Cascade deletion where appropriate.
 
 ### RLS policy principle
+
 For each private table, SELECT/INSERT/UPDATE/DELETE require `auth.uid() = owner_user_id` (INSERT uses `WITH CHECK`). `profiles` uses `auth.uid() = user_id`. Validate ownership of foreign-key references such as `plan_id`, not just the completion row. Server-only notification jobs may use elevated credentials securely, but must filter by intended recipient.
 
 ## 6. Meal-gap notification behavior
+
 A meal reminder is a user-controlled **journal prompt**, not an instruction to restrict eating or to wait until a certain time.
 
 1. User enables reminders, chooses gap interval, quiet hours, and opts into browser push.
@@ -97,6 +108,7 @@ A meal reminder is a user-controlled **journal prompt**, not an instruction to r
 **Two-person routing:** Each person's device subscription belongs to their authenticated profile. Notifications must never be routed based only on a manually selected display name.
 
 ## 7. Summaries & calculations
+
 - Today = calendar day in `Asia/Bangkok`, not UTC day.
 - Meal count = number of logged meal entries for selected day; optional meal-type breakdown.
 - Activity total = sum of recorded minutes for selected date/week.
@@ -106,6 +118,7 @@ A meal reminder is a user-controlled **journal prompt**, not an instruction to r
 - Charts need correct units, date labels, empty states, and accessible text summaries.
 
 ## 8. Data protection & operational needs
+
 - Privacy policy in-app explaining what is stored and who can access it.
 - Never store credentials, notification secrets, or sensitive logs in client code.
 - Supabase Storage photo bucket private, owner-scoped policies, signed URLs as needed, file size/type limits.
@@ -116,9 +129,11 @@ A meal reminder is a user-controlled **journal prompt**, not an instruction to r
 - Use environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (or project-compatible anon key); keep `SUPABASE_SERVICE_ROLE_KEY`, VAPID private key, and enrollment secrets server-side only.
 
 ## 9. Suggested frontend routes
+
 `/` dashboard · `/meals` · `/meals/new` · `/activities` · `/activities/new` · `/calendar` · `/progress` · `/plans` · `/reminders` · `/settings` · `/enroll` (only on unregistered device, not a routine login page).
 
 ## 10. Build milestones
+
 **M1 — UI & foundation:** React shell, routing, tokens, responsive components, demo states.
 
 **M2 — Secure backend:** Supabase setup, migrations, two profile identities, device enrollment, RLS and tests.
@@ -130,6 +145,7 @@ A meal reminder is a user-controlled **journal prompt**, not an instruction to r
 **M5 — Polish:** PWA, accessibility, export/delete, performance, tests, deploy checklist.
 
 ## 11. Acceptance tests
+
 - Mix and Name have separate authenticated sessions and cannot fetch/update one another's private entries even by manually changing API parameters.
 - New device without enrollment cannot read private data.
 - Food CRUD changes dashboard and reminder state correctly, including edits/deletions and backdated entries.
@@ -140,6 +156,7 @@ A meal reminder is a user-controlled **journal prompt**, not an instruction to r
 - User can export and delete their own records, and the UI clearly distinguishes real vs demo data.
 
 ## 12. Questions to resolve with coding agent
+
 1. Which secure no-login enrollment approach is easiest to maintain with the chosen Supabase plan?
 2. Will reminders be push-only or push + in-app? Which browsers/devices need support?
 3. Should the two users have any intentionally shared weekly plans, or remain entirely separate?

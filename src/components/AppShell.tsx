@@ -10,7 +10,7 @@ import {
   Bell,
   Settings,
   Plus,
-  ShieldCheck,
+  UsersRound,
   ArrowRight,
   LogOut,
   X,
@@ -44,6 +44,7 @@ export function AppShell() {
     initial?: Record<string, unknown>;
   } | null>(null);
   const [toast, setToast] = useState("");
+  const [leaving, setLeaving] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -66,11 +67,15 @@ export function AppShell() {
     } else setSheet(true);
   };
   const logout = async () => {
+    if (leaving) return;
+    setLeaving(true);
     try {
       await leave();
       navigate("/");
     } catch (e) {
       setToast(e instanceof Error ? e.message : "ออกจากระบบไม่สำเร็จ");
+    } finally {
+      setLeaving(false);
     }
   };
   return (
@@ -81,7 +86,7 @@ export function AppShell() {
             <span className="brand-icon">
               <Heart size={23} />
             </span>
-            FitLog<span className="brand-dot">.</span>
+            Wellio<span className="brand-dot">.</span>
           </NavLink>
           <p className="sidebar-caption">พื้นที่เล็กๆ เพื่อสุขภาพที่ดี</p>
           <span className="nav-label">ทุกวันของคุณ</span>
@@ -124,7 +129,7 @@ export function AppShell() {
             <span className="avatar">{profile?.display_name.slice(0, 1)}</span>
             <span>
               <b>{profile?.display_name}</b>
-              <small>{demo ? "กำลังทดลองใช้งาน" : "พื้นที่ส่วนตัว"}</small>
+              <small>{demo ? "กำลังทดลองใช้งาน" : "บัญชีที่เลือก"}</small>
             </span>
             <ArrowRight size={17} />
           </button>
@@ -147,9 +152,18 @@ export function AppShell() {
               </b>
             </div>
             <div className="topbar-actions">
+              <button
+                className="logout-button"
+                aria-label="ออกจาก session"
+                disabled={leaving}
+                onClick={() => void logout()}
+              >
+                <LogOut size={19} />
+                <span>{leaving ? "กำลังออก…" : "ออกจาก session"}</span>
+              </button>
               <span className="privacy-tag">
-                <ShieldCheck size={15} />
-                ส่วนตัวเสมอ
+                <UsersRound size={15} />
+                บันทึกแยกบัญชี
               </span>
               <button
                 className="icon-button notification-button"
@@ -173,7 +187,7 @@ export function AppShell() {
                 โหมดทดลอง · ข้อมูลทั้งหมดเป็นข้อมูลสมมติ เก็บในเบราว์เซอร์นี้
               </span>
               <button onClick={() => void logout()}>
-                เชื่อมบัญชีจริง
+                เลือกบัญชีจริง
                 <ArrowRight size={14} />
               </button>
             </div>
@@ -188,7 +202,7 @@ export function AppShell() {
           </main>
           <footer className="page-footer">
             <Heart size={13} />
-            ดูแลตัวเองในจังหวะที่เป็นคุณ <span>FitLog · for your everyday</span>
+            ดูแลตัวเองในจังหวะที่เป็นคุณ <span>Wellio · for your everyday</span>
           </footer>
         </div>
         <nav className="bottom-nav" aria-label="เมนูหลัก">

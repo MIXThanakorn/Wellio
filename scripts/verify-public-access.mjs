@@ -48,7 +48,7 @@ await mkdir("artifacts", { recursive: true });
 await writeFile(
   "artifacts/public-access-verification.json",
   JSON.stringify(
-    { checkedAt: new Date().toISOString(), project: "lessweight", checks },
+    { checkedAt: new Date().toISOString(), project: "Wellio", checks },
     null,
     2,
   ) + "\n",

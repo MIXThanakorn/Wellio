@@ -150,7 +150,7 @@ Deno.serve(async (req: Request) => {
             keys: { p256dh: sub.p256dh, auth: sub.auth_secret },
           },
           JSON.stringify({
-            title: "FitLog · เพื่อนเตือนเบาๆ",
+            title: "Wellio · เพื่อนเตือนเบาๆ",
             body: "ไม่ได้บันทึกมื้ออาหารมาสักพักแล้ว อยากอัปเดตบันทึกไหม?",
           }),
           { TTL: 900, urgency: "normal", timeout: 10000 },

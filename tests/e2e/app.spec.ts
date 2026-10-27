@@ -41,7 +41,7 @@ test("favorite removal requires confirmation and dialogs retain keyboard focus",
     .getByRole("button", { name: "ออกจากโหมดทดลอง", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "ยินดีต้อนรับสู่ FitLog" }),
+    page.getByRole("heading", { name: "ยินดีต้อนรับสู่ Wellio" }),
   ).toBeVisible();
 });
 async function demo(page: Page) {
@@ -183,14 +183,28 @@ for (const width of [320, 375, 390, 768, 1440])
       fullPage: true,
     });
   });
-test("unregistered device cannot enter a real profile", async ({ page }) => {
+test("visitor without a session sees both account choices", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "ยินดีต้อนรับสู่ FitLog" }),
+    page.getByRole("heading", { name: "ยินดีต้อนรับสู่ Wellio" }),
   ).toBeVisible();
   await page.goto("/meals");
   await expect(
-    page.getByRole("heading", { name: "ยินดีต้อนรับสู่ FitLog" }),
+    page.getByRole("heading", { name: "ยินดีต้อนรับสู่ Wellio" }),
   ).toBeVisible();
   await expect(page.getByText("Test meal", { exact: true })).toHaveCount(0);
+  await expect(page.locator("input[type=email]")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "เลือกบัญชี มิก", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "เลือกบัญชี เนม", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "artifacts/wellio-welcome-390.png",
+    fullPage: true,
+  });
 });

@@ -14,7 +14,21 @@ export default defineConfig(({ mode }) => {
         env.VITE_SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY || "",
       ),
     },
-    server: { host: "127.0.0.1", port: 5173 },
+    server: {
+      host: "127.0.0.1",
+      port: 5173,
+      fs: {
+        deny: [
+          ".env",
+          ".env.*",
+          "*.{crt,pem}",
+          "**/.git/**",
+          "**/*.local",
+          "**/*.local.json",
+          "**/*.local.md",
+        ],
+      },
+    },
     test: { environment: "node", include: ["tests/**/*.test.ts"] },
   };
 });

@@ -156,7 +156,7 @@ function ReminderEditor({
       if (Notification.permission !== "granted")
         throw new Error("กรุณาเปิดการแจ้งเตือนสำหรับอุปกรณ์นี้ก่อน");
       const registration = await navigator.serviceWorker.ready;
-      await registration.showNotification("FitLog · ทดสอบการแจ้งเตือน", {
+      await registration.showNotification("Wellio · ทดสอบการแจ้งเตือน", {
         body: "นี่คือการทดสอบบนอุปกรณ์นี้ ยังไม่ใช่การส่งจากเซิร์ฟเวอร์",
         icon: "/icon.svg",
       });

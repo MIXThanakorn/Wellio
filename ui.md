@@ -1,4 +1,4 @@
-# FitLog — UI / UX Specification
+# Wellio — UI / UX Specification
 
 > Mobile-first design based on the approved **simple, everyday-use** mockup. No anime illustrations, mascots, gamified characters, or visual clutter.
 

@@ -19,7 +19,7 @@ import { disableOtherPushDevices } from "../../lib/push";
 import { downloadCSV } from "../../lib/export";
 import { ErrorBox, Modal } from "../../components/ui";
 export function SettingsPage() {
-  const { profile, demo, leave, reloadProfile } = useAuth();
+  const { profile, demo, leave, reloadProfile, session } = useAuth();
   const journal = useJournal();
   const { notify } = useUI();
   const client = useQueryClient();
@@ -112,10 +112,21 @@ export function SettingsPage() {
             <div>
               <h2>{profile?.display_name}</h2>
               <span className="badge">
-                {demo ? "ข้อมูลตัวอย่าง" : "ยืนยันอุปกรณ์แล้ว"}
+                {demo ? "ข้อมูลตัวอย่าง" : "กำลังใช้งาน"}
               </span>
             </div>
           </div>
+          {!demo && (
+            <div className="account-status">
+              <b>บัญชีถาวรของ{profile?.display_name}</b>
+              <span>
+                {session?.user.app_metadata.contact_email_linked
+                  ? "ผูกอีเมลส่วนตัวแล้ว"
+                  : "อีเมลส่วนตัว: ยังไม่เชื่อม · เชื่อมภายหลังได้"}
+              </span>
+              <small>session จำอยู่บนอุปกรณ์นี้ และต่ออายุอัตโนมัติ</small>
+            </div>
+          )}
           <form className="form-stack" onSubmit={save}>
             <label>
               ชื่อที่แสดง
@@ -154,7 +165,7 @@ export function SettingsPage() {
               <Check size={17} />
               บันทึกความชอบ
             </button>
-            {demo && <small>เชื่อมบัญชีจริงเพื่อแก้ไขโปรไฟล์</small>}
+            {demo && <small>เลือกบัญชีจริงเพื่อแก้ไขโปรไฟล์</small>}
           </form>
         </section>
         <div>
@@ -164,8 +175,8 @@ export function SettingsPage() {
               อุปกรณ์และความเป็นส่วนตัว
             </h2>
             <p>
-              ข้อมูลผูกกับบัญชีที่ยืนยันแล้ว
-              การเลือกชื่อคนอื่นไม่สามารถเปิดข้อมูลของเขาได้
+              ใช้ลิงก์เดียวสำหรับมิกและเนม เลือกบัญชีครั้งแรก แล้วระบบจะจำ
+              session ไว้จนกว่าจะออกจากบัญชี
             </p>
             <div className="settings-actions">
               <button
@@ -202,7 +213,7 @@ export function SettingsPage() {
               </button>
             </div>
             <p className="help">
-              อุปกรณ์ใหม่หรือการเปลี่ยนบัญชีต้องใช้ลิงก์ยืนยันใหม่ Session
+              ออกจาก session เพื่อกลับไปเลือกมิกหรือเนมได้เสมอ Session
               อื่นที่ยกเลิกแล้วอาจใช้ access token เดิมได้จนหมดอายุ
             </p>
           </section>
@@ -228,7 +239,7 @@ export function SettingsPage() {
           </section>
           <div className="app-about">
             <Heart size={20} />
-            <b>FitLog</b>
+            <b>Wellio</b>
             <p>
               พื้นที่เล็กๆ สำหรับการใส่ใจตัวเอง
               <br />
@@ -318,12 +329,14 @@ export function SettingsPage() {
         <Modal title="ความเป็นส่วนตัวของคุณ" onClose={() => setPrivacy(false)}>
           <div className="privacy-copy">
             <p>
-              FitLog เก็บชื่อ บันทึกอาหาร กิจกรรม น้ำดื่ม น้ำหนัก แผน
-              และการตั้งค่าใน Supabase โปรเจ็กต์ lessweight โดยมี RLS
+              Wellio เก็บชื่อ บันทึกอาหาร กิจกรรม น้ำดื่ม น้ำหนัก แผน
+              และการตั้งค่าใน Supabase โปรเจ็กต์ Wellio โดยมี RLS
               แยกข้อมูลตามบัญชี
             </p>
             <p>
-              มิกและเนมเห็นเฉพาะข้อมูลของตัวเอง ผู้ดูแลโปรเจ็กต์ Supabase
+              หน้าจอและข้อมูลแยกตามบัญชีที่เลือก
+              แต่ผู้มีลิงก์เว็บสามารถเลือกได้ทั้งมิกและเนม โดยไม่มี PIN
+              หรือการยืนยันตัวตน ผู้ดูแลโปรเจ็กต์ Supabase
               ที่มีสิทธิ์จัดการฐานข้อมูลสามารถเข้าถึงข้อมูลได้
               ไม่มีแผนที่แชร์กันโดยอัตโนมัติ
             </p>

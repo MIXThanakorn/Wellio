@@ -18,6 +18,123 @@
   --purple: #8070a9;
   line-height: 1.65;
 }
+.account-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 26px;
+}
+.account-preview > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+}
+.account-preview > div > div {
+  flex: 1;
+}
+.account-preview b {
+  display: block;
+  font-size: 15px;
+}
+.account-preview small {
+  display: block;
+  font-size: 11px;
+}
+.account-preview > div > svg {
+  color: #278770;
+}
+.account-status {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: #eaf5ff;
+  padding: 15px;
+  border-radius: 12px;
+  margin-bottom: 22px;
+  font-size: 12px;
+}
+.account-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 26px 0 20px;
+}
+.account-choice {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: 100%;
+  min-height: 92px;
+  padding: 18px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: white;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.account-choice:hover:not(:disabled) {
+  border-color: #8bc2f8;
+  background: #f4f9ff;
+}
+.account-choice .avatar {
+  width: 48px;
+  height: 48px;
+  background: #eaf5ff;
+  color: #1769bd;
+}
+.account-choice.name .avatar {
+  background: #fff0f5;
+  color: #a64b70;
+}
+.account-choice-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 4px;
+}
+.account-choice-copy b {
+  font-size: 17px;
+}
+.account-choice-copy small {
+  font-size: 12px;
+}
+.account-choice > svg {
+  color: #1769bd;
+}
+.account-spinner {
+  animation: account-spin 1s linear infinite;
+}
+@keyframes account-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.logout-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted);
+}
+.logout-button:hover {
+  background: #f3f7fc;
+  color: var(--navy);
+}
+@media (max-width: 599px) {
+  .logout-button span {
+    display: none;
+  }
+}
 * {
   box-sizing: border-box;
 }

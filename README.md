@@ -1,92 +1,69 @@
-# FitLog
+# Wellio
 
-แอปบันทึกสุขภาพภาษาไทยสำหรับมิกและเนม สร้างตาม `project.md`, `skill.md` และ `ui.md` ด้วย React + TypeScript + Vite และ Supabase
+แอปบันทึกสุขภาพภาษาไทยของมิกและเนม ใช้ React + TypeScript + Vite และ Supabase โปรเจ็กต์ **Wellio** (`alpbutepoqnbvbbnesit`)
 
-## เปิดใช้งาน
+## เปิดแอป
 
 ```sh
 npm ci
 npm run dev
 ```
 
-เปิด http://127.0.0.1:5173 แล้วเลือก **สำรวจแอปด้วยข้อมูลตัวอย่าง** ได้ทันที ข้อมูลตัวอย่างเป็นข้อมูลสมมติ บันทึกใน localStorage แยกจากฐานข้อมูลจริง ไม่มีการสร้างบัญชีหรือใช้ข้อมูลจริงแทนผู้ใช้
+ใช้ลิงก์เดียว: http://127.0.0.1:5173/
 
-ไฟล์ `.env.local` ที่มีอยู่ถูกเชื่อมกับแอปแล้ว รองรับทั้ง `SUPABASE_URL` / `SUPABASE_ANON_KEY` เดิม และตัวแปร `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` ที่แนะนำ โดยจะส่งเฉพาะ public key ให้ frontend เท่านั้น
+- ไม่มี session → แสดงปุ่ม **มิก** และ **เนม** กดชื่อเพื่อเข้าบัญชีนั้นทันที
+- มี session → เปิดบัญชีเดิมให้เอง รวมถึงหลังปิดแล้วเปิดเบราว์เซอร์ใหม่
+- ปุ่ม **ออกจาก session** บนแถบด้านบน หรือออกจากบัญชีในหน้าตั้งค่า → ล้าง session และกลับหน้าเลือกชื่อ
+- หลังออกแล้วเลือกอีกคนได้จาก URL เดิม ไม่ต้องใช้อีเมล รหัสผ่าน PIN หรือลิงก์เฉพาะคน
+- มีโหมดทดลองที่เก็บข้อมูลสมมติแยกในเบราว์เซอร์
 
-## สิ่งที่ใช้งานได้
+## รูปแบบสิทธิ์ที่ผู้ใช้ยืนยัน
 
-- บันทึก เพิ่ม แก้ไข ลบ และค้นหาอาหาร กิจกรรม น้ำดื่ม และเช็กอินน้ำหนัก
+ผู้ใช้ยืนยันให้ **เลือกชื่อแล้วเข้าได้ทันที** และยอมรับว่า **ทุกคนที่มีลิงก์เว็บสามารถเลือกเข้าได้ทั้งสองบัญชี** จึงไม่มีการตรวจว่าคนที่กดชื่อเป็นมิกหรือเนมจริง
+
+RLS ยังบังคับให้แต่ละ session อ่าน/เขียนเฉพาะเจ้าของบัญชีที่เลือก การแก้ `owner_user_id` ในคำขอไม่ทำให้ข้าม RLS ได้ แต่ผู้ถือ URL สามารถออกแล้วเลือกอีกบัญชี หรือเรียก endpoint เลือกบัญชีเพื่อสร้าง session ของอีกคนได้ตามนโยบายที่อนุมัติ อย่าอธิบายระบบนี้ว่าแยกความลับระหว่างคนสองคน หากต้องการจำกัดบุคคลในอนาคตต้องเพิ่มการยืนยันตัวตนที่ endpoint ออก session
+
+## บัญชีและ session
+
+- มี Auth identities ถาวรสองบัญชี: slot `mix` และ `name` ผูกกับ `profiles.user_id` เดิม ไม่สร้าง anonymous user ใหม่ทุกครั้ง
+- ปิด public signup บน Supabase Auth แล้ว หน้าเลือกชื่อออก session ให้ได้เฉพาะสอง slot ที่ whitelist ไว้ ไม่รับ UUID เจ้าของบัญชีจาก client
+- Frontend เรียก Edge Function `device-access` action `select-profile` พร้อม slug จากนั้นเก็บ Supabase Auth session ด้วย `persistSession` และ `autoRefreshToken`
+- การสร้าง/ตรวจ Auth token ทำบน server ไม่มี service role key หรือรหัสบัญชีใน frontend
+- มี rate limit การเลือกบัญชี 30 ครั้งต่อ 15 นาทีต่อ fingerprint ฝั่ง server เก็บ fingerprint แบบ HMAC โดยไม่เก็บ IP ดิบ
+- ออกจากอุปกรณ์นี้ใช้ `signOut({scope:'local'})` และตัด push ของอุปกรณ์นี้ อุปกรณ์อื่นยังใช้ session ของตัวเองต่อได้
+- หน้าตั้งค่ายังมี revoke session อุปกรณ์อื่นและปิด push ของอุปกรณ์อื่น Access token ที่ออกไปแล้วอาจใช้ได้จนหมดอายุตาม Supabase Auth
+- เมื่อ server/network error ระหว่าง logout ตัว SDK ล้าง session ในเครื่องตามกลไกของ SDK แอปตรวจสถานะที่เหลือและไม่เก็บบัญชีเก่าค้างบนหน้าจอ
+
+ยังไม่ผูกอีเมลส่วนตัวตามที่ขอ Auth ใช้ alias ภายในโดเมนสงวน `.invalid` และรหัสสุ่มที่ไม่เปิดเผยเพื่อรองรับการออก session ฝั่ง server ไม่มีการส่งอีเมล อีเมลส่วนตัวสามารถเชื่อมภายหลังผ่านผู้ดูแลหลังยืนยันความเป็นเจ้าของ โดยคง UUID และข้อมูลเดิมไว้ รุ่นนี้ไม่มีฟอร์มผูกอีเมล
+
+ระบบลิงก์เชื่อมอุปกรณ์เดิมไม่อยู่ใน UI แล้ว ไฟล์ลิงก์ส่วนตัวถูกนำออก bookmark แบบเก่าจะถูกปรับกลับเป็น URL ปกติ ส่วน RPC/migration เดิมคงไว้เพื่อ compatibility
+
+## ฟีเจอร์
+
+- เพิ่ม แก้ไข ลบ ค้นหาอาหาร กิจกรรม น้ำดื่ม และเช็กอินน้ำหนัก
 - Timeline รายวัน ปฏิทินเดือน/สัปดาห์ และกราฟ 7/30/90/365 วัน
-- เช็กอินน้ำหนักใช้รายการล่าสุดในแต่ละสัปดาห์ เว้นสัปดาห์ที่ไม่มีข้อมูล และเลือกซ่อนได้
+- น้ำหนักรายสัปดาห์ใช้รายการล่าสุด ไม่เติมข้อมูลในสัปดาห์ที่ขาด และซ่อนได้
 - แผนรายสัปดาห์ เลือกวัน/เวลา พักแผน และทำเครื่องหมายสำเร็จ
-- อาหารโปรด เติมข้อมูลลงฟอร์มก่อนยืนยันบันทึก
-- เตือนในแอปจากมื้อล่าสุด ช่วงพักข้ามเที่ยงคืน การเลื่อนเตือน และเปิด/ปิดได้
-- Web Push พร้อม Service Worker, Edge Function, Vault และ Cron ทุก 15 นาที
-- ส่งออก CSV ของบัญชีตัวเอง พร้อมป้องกันสูตรใน spreadsheet และลบบันทึกทั้งหมดแบบ transaction
-- ยืนยันอุปกรณ์ด้วย private invitation / magic link, จำ session และออกจากอุปกรณ์อื่นได้
-- PWA manifest และ app icons; Service Worker ไม่ cache API, health data หรือ auth tokens
+- อาหารโปรด ส่งออก CSV ป้องกันสูตรใน spreadsheet และลบบันทึกของบัญชีที่เลือกแบบ transaction
+- เตือนในแอปจากมื้อล่าสุด ตั้งช่วงพักข้ามเที่ยงคืนและเลื่อนเตือนได้
+- Web Push, Service Worker, VAPID ใน Vault และ Cron ทุก 15 นาที ติดตั้งฝั่ง Supabase แล้ว ผู้ใช้ต้องกดอนุญาต push เอง
+- PWA manifest และ PNG app icons; ไม่ cache Auth tokens หรือ health API responses ใน service worker
 
-## Supabase ที่ติดตั้งแล้ว
+ตาราง public 11 ตารางเปิด RLS ครบ: `profiles`, `meal_entries`, `activity_entries`, `weight_checkins`, `water_entries`, `routine_plans`, `plan_completions`, `reminder_preferences`, `push_subscriptions`, `favorite_meals`, `reminder_deliveries` ตาราง ledger ปิดสิทธิ์ client ส่วน completion และ push delivery มี foreign keys ตรวจเจ้าของความสัมพันธ์ด้วย
 
-Project: **lessweight** (`alpbutepoqnbvbbnesit`), URL: https://alpbutepoqnbvbbnesit.supabase.co
+Schema `private` เก็บ rate limits และ enrollment รุ่นก่อน ไม่ expose Data API; RPC privileged อนุญาต service_role เท่านั้น ทุก function ตั้ง search_path ไว้ ส่วน helper อ่าน Vault เป็น SECURITY DEFINER ใน schema private และจำกัดสิทธิ์อย่างชัดเจน
 
-ตาราง 11 ตารางใน `public`:
+Migration ตรงกับ cloud history แล้ว ไม่ต้องนำไปรันซ้ำ ชื่อ internal RPC/Vault บางรายการที่ขึ้นต้น `fitlog_` คงไว้เพื่อ compatibility ชื่อแอปและชื่อโปรเจ็กต์ Supabase เป็น Wellio แล้ว
 
-| ตาราง                | หน้าที่                                                    |
-| -------------------- | ---------------------------------------------------------- |
-| profiles             | mapping Auth identity กับ slot `mix` / `name` ที่ไม่ซ้ำกัน |
-| meal_entries         | มื้ออาหาร                                                  |
-| activity_entries     | กิจกรรม                                                    |
-| weight_checkins      | เช็กอินน้ำหนัก ไม่ซ้ำคน/วัน                                |
-| water_entries        | น้ำดื่ม                                                    |
-| routine_plans        | แผนรายสัปดาห์                                              |
-| plan_completions     | ทำแผนสำเร็จ พร้อม composite FK ตรวจเจ้าของแผน              |
-| reminder_preferences | consent ช่วงเวลาพัก และ snooze                             |
-| push_subscriptions   | subscription ของอุปกรณ์แต่ละคน                             |
-| favorite_meals       | อาหารโปรด                                                  |
-| reminder_deliveries  | ledger ฝั่ง server เพื่อกันส่งซ้ำและ retry                 |
+## Environment และ deploy
 
-ทุกตารางเปิด RLS และไม่มีสิทธิ์ `anon` ตารางส่วนตัวให้สิทธิ์เฉพาะ `auth.uid() = owner_user_id` (profile ใช้ `user_id`) พร้อม SELECT/INSERT/UPDATE/DELETE แยกตาม operation, UPDATE มีทั้ง USING และ WITH CHECK ตาราง ledger ปิดสิทธิ์ client ทั้งหมด
-
-Frontend **สร้าง profile หรือเปลี่ยน slot/เจ้าของ profile ไม่ได้** จึงไม่สามารถสมัครหรือเลือกชื่อคนอื่นเพื่อข้ามสิทธิ์ แม้ Supabase Auth จะอนุญาตให้สร้าง Auth identity อื่น Identity นั้นจะไม่มี mapping และเขียน journal ไม่ได้
-
-Migration ใน `supabase/migrations` ตรงกับ migration history บน cloud แล้ว ไม่ต้องนำไปรันซ้ำบน lessweight
-
-### ยืนยันอุปกรณ์ / ใส่อีเมลทีหลัง
-
-ตามที่ผู้ใช้ขอ ยังไม่สร้าง Auth identities จริงและยังไม่ส่ง invitation ใดๆ เมื่อต้องการใช้ข้อมูลจริง:
-
-1. ที่ Supabase Dashboard → Authentication → URL Configuration ตั้ง Site URL ของเว็บจริง และเพิ่ม redirect URL สำหรับเว็บจริงและ `http://127.0.0.1:5173` ตามที่ใช้
-   แนะนำให้ปิดการสมัครสมาชิกใหม่ (Allow new users to sign up) สำหรับใช้งานเฉพาะสองบัญชี การตั้งค่า local ใน `supabase/config.toml` ปิดไว้แล้ว แต่ไม่ได้ push Auth configuration ของ cloud โดยอัตโนมัติ
-2. ใช้ SMTP ของคุณหากต้องการส่งอีเมลจริงเกินข้อจำกัดของระบบทดสอบ Supabase
-3. เชิญสองคนโดยตั้ง environment เฉพาะ shell ฝั่งผู้ดูแล: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FITLOG_APP_URL` แล้วรัน:
+`.env.local` ใช้งานได้แล้ว รองรับ `SUPABASE_URL` / `SUPABASE_ANON_KEY` เดิม หรือ `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` ที่แนะนำ และ `VITE_VAPID_PUBLIC_KEY` ห้ามใส่ service role key ในตัวแปร `VITE_*`
 
 ```sh
-npm run invite -- mix EMAIL_OF_MIX
-npm run invite -- name EMAIL_OF_NAME
+npm run build
 ```
 
-สคริปต์ส่ง invitation ผ่าน Supabase Auth และผูก Auth user ที่ได้กับ profile slot นั้น หากผูก profile ล้มเหลวจะรายงานข้อผิดพลาดและ identity ยังคงไม่มีสิทธิ์ journal ต้องแก้ mapping ผ่านผู้ดูแลก่อนเข้าใช้งาน ไม่มี profile INSERT policy สำหรับ client
-
-หากเชิญผ่าน Dashboard แทน ให้ผู้ดูแล insert `profiles(user_id, slug, display_name)` โดยใช้ UUID ของ Auth user ที่เชิญจริง ห้ามเชื่อ UUID ที่ frontend ส่งมาสำหรับการ provision
-
-4. เปิดลิงก์บนอุปกรณ์ที่ต้องการ หรือกรอกอีเมลที่ได้รับเชิญในหน้าเชื่อมต่ออุปกรณ์ เพื่อขอ magic link ใหม่ (ใช้ `shouldCreateUser: false`) สำหรับ magic link แบบ PKCE ให้เปิดลิงก์ในเบราว์เซอร์ที่ขอลิงก์
-
-**อย่าใส่ service role key ใน `.env.local` ของ Vite หรือตัวแปร `VITE_*`** สคริปต์ฝั่งผู้ดูแลอ่านจาก process environment เท่านั้น ไม่เขียน credential ลงไฟล์
-
-### Push และ Cron
-
-- Deploy Edge Function `send-reminders` แล้ว และเปิด cron job `fitlog-meal-reminders` ทุก 15 นาที
-- กุญแจ VAPID และ cron token สร้างแล้ว เก็บเข้ารหัสใน Supabase Vault ไม่มี private key ใน repository หรือ frontend
-- `.env.local` มีเฉพาะ VAPID public key สำหรับ `PushManager.subscribe`
-- Endpoint ของ Edge Function ใช้ custom bearer token ของ Cron จึงตั้ง `verify_jwt=false`; handler ตรวจ token ด้วยตนเองก่อนอ่าน/ส่งข้อมูลผู้ใช้
-- การอ่าน Vault ใช้ helper SECURITY DEFINER ใน schema `private` ที่ไม่ expose API, search_path ว่าง, ตรวจไม่ใช่ user session และอนุญาต execute เฉพาะ service_role ส่วน wrapper ใน public เป็น SECURITY INVOKER และ service_role-only
-- Retry เฉพาะสถานะ failed สูงสุด 3 ครั้ง เว้นอย่างน้อย 15 นาทีต่อครั้ง unique interval/device ป้องกัน job ซ้อนกัน ข้อความ push ไม่ใส่น้ำหนักหรือชื่ออาหาร
-- หาก process ล้มหลังเริ่มส่งและก่อนบันทึกผล จะไม่ส่งซ้ำสถานะ sending โดยอัตโนมัติ เพื่อหลีกเลี่ยงข้อความซ้ำ ผู้ดูแลตรวจ ledger ได้
-- อุปกรณ์เปิด push ได้เมื่อเชื่อมบัญชีจริงและผู้ใช้กดอนุญาตเท่านั้น บน iOS ต้องติดตั้งลง Home Screen และใช้ browser/OS ที่รองรับ การส่งขึ้นกับเครือข่าย/OS อาจล่าช้า
-- ปุ่มทดสอบบนอุปกรณ์ทดสอบ local notification และระบุชัดว่าไม่ใช่ทดสอบการส่งจาก server
-- ปิด subscription อัตโนมัติเมื่อ push service ส่ง 404/410
-- ทดสอบเรียก Edge Function ผ่าน Cron authentication แล้วตอบ HTTP 200: sent=0, failed=0, skipped=0 (ยังไม่มีผู้ใช้จริง/subscriptions) ยังไม่ได้ส่ง push ไปอุปกรณ์จริง
+Deploy `dist` ไป static hosting มี SPA rewrites สำหรับ Vercel/Netlify ใน `vercel.json` และ `public/_redirects` แล้ว ตั้ง public environment ก่อน build ใช้ HTTPS สำหรับ push เว็บยังไม่ได้ publish เพราะยังไม่มี hosting/domain ที่ระบุ
 
 ## ทดสอบ
 
@@ -94,32 +71,24 @@ npm run invite -- name EMAIL_OF_NAME
 npm test
 npm run db:test
 npm run test:e2e
+npm run test:sessions
 npm run build
 ```
 
-ทดสอบแบบ fixture ต้องใช้ฐานข้อมูล development ที่ยังไม่มี profile จริง ชุด SQL ตรวจเงื่อนไขนี้ก่อนเสมอ เพื่อไม่แก้ไขข้อมูลส่วนตัวที่มีอยู่
+- Unit tests 11 รายการ: เวลาไทย ช่วงพัก snooze ข้อมูลว่าง validation และ CSV
+- Playwright 10 รายการ: CRUD, plans, favorites, keyboard focus, หน้าเลือกชื่อ และทุกหน้าที่ 320/375/390/768/1440 px
+- `test:sessions` ใช้สองบัญชีจริงจาก URL เดียว ทดสอบ 14 กรณี รวม session หลัง browser restart, logout, reload หลัง logout, เลือกอีกคนโดยไม่ใช้ cache เก่า, RLS ของ session ที่เลือก, invalid slug และป้องกัน admin endpoint ผลอยู่ใน `artifacts/session-verification.json` ลบเฉพาะ journal fixtures ที่สร้างโดยชุดทดสอบเมื่อเสร็จ ไม่ต้องมี private link fixture
+- `db:test` ใช้ PGlite ตรวจ schema/RLS, enrollment รุ่นก่อน และ rate limit ของ profile selection
+- SQL `supabase/tests/profile_selection.sql` รันบน cloud และ rollback เพื่อทดสอบ rate limit/window reset/service-role-only โดยไม่แตะ journal จริง
+- SQL isolation แบบ seed profile ต้องใช้ development project ที่ว่างเท่านั้น มี guard ป้องกันแก้ข้อมูลในโปรเจ็กต์ที่มี profile จริงแล้ว
+- `node scripts/verify-public-access.mjs` ตรวจ anonymous REST denial และการป้องกัน cron endpoint ส่วน `select-profile` เป็น endpoint สาธารณะโดยตั้งใจตามคำยืนยันของผู้ใช้
 
-`db:test` ใช้ Postgres ใน PGlite สำหรับ core schema/RLS ส่วน `supabase/tests/rls_isolation.sql` รันกับฐานข้อมูล Supabase จริงแล้วและ rollback fixtures ทั้งหมด ทดสอบ anonymous denial, SELECT/UPDATE/DELETE isolation ทุกตารางส่วนตัว, forged ownership, foreign-plan references, unapproved identity, slot reassignment และ transactional per-profile deletion
+## ขอบเขตและผลตรวจ
 
-Playwright ทดสอบ CRUD, reload persistence, plans, quiet hours, CSV, unenrolled devices และทุกหน้าที่ 320/375/390/768/1440 px เก็บภาพตรวจหน้าแรกใน `artifacts/`
+รูปอาหาร/private Storage, shared plans และ offline write queue เป็น P2 ยังไม่มีปุ่มที่ทำให้เข้าใจว่าใช้งานได้แล้ว ข้อมูลจริงที่โหลดไว้ดูได้ขณะ tab ยังเปิด แต่ไม่รับรอง cold-start offline และไม่แสดงว่าบันทึกสำเร็จเมื่อเครือข่ายล้มเหลว
 
-ผลตรวจล่าสุด: unit tests 11 รายการ และ Playwright 10 รายการผ่านทั้งหมด รวมถึง build และ RLS บนฐานข้อมูลจริง รัน `node scripts/verify-public-access.mjs` เพื่อตรวจ public REST API และ Cron endpoint ว่าปฏิเสธคำขอที่ไม่มีสิทธิ์ได้ (ตรวจผ่าน 5 กรณีแล้ว)
+Push ฝั่ง server ทดสอบเรียก authenticated cron สำเร็จแล้ว แต่ยังไม่มี subscription/การส่งถึงอุปกรณ์จริง การส่งอาจล่าช้าตาม OS/เครือข่าย ledger กัน job ซ้ำและ retry failed ได้สูงสุด 3 ครั้งโดยเว้นอย่างน้อย 15 นาที
 
-Supabase Security Advisor ไม่มี findings ส่วน Performance Advisor มี [INFO: unused index](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index) สำหรับ index ของ foreign key ที่เพิ่งสร้างและยังไม่มีข้อมูลใช้งานจริง คง index นี้ไว้เพื่อรองรับการตรวจเจ้าของ subscription ไม่ใช่ข้อผิดพลาดหรือคำเตือนด้านความปลอดภัย
+Supabase Auth มีคำเตือน [Leaked Password Protection Disabled](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection) จากค่าการป้องกันรหัสผ่านรั่วที่ยังปิดอยู่ แอปนี้ไม่รับรหัสผ่านผู้ใช้ ใช้รหัสสุ่มภายในที่ไม่เปิดเผย ส่วน [INFO: unused index](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index) คงไว้เพื่อรองรับ foreign keys และ workload เมื่อมีข้อมูลจริง
 
-## Deploy frontend
-
-```sh
-npm run build
-```
-
-อัปโหลด `dist` ไป static hosting เช่น Vercel/Netlify มี SPA rewrites สำหรับทั้งสองแบบใน `vercel.json` และ `public/_redirects` แล้ว ตั้ง public environment จาก `.env.example` และ public VAPID key ของโปรเจ็กต์ก่อน build จากนั้นเพิ่ม Auth redirect URL ของ domain จริง
-
-ยังไม่ได้ publish frontend เพราะยังไม่มี hosting/domain ที่ระบุ เปิด local preview ได้ด้วย `npm run dev` หรือ `npm run preview`
-
-## ขอบเขตที่ยังไม่เปิดในรุ่นนี้
-
-- รูปอาหาร/private Storage, shared plans และ offline write queue เป็น P2 ยังไม่แสดงปุ่มเสมือนใช้งานได้
-- ไม่ cache journal ลง persistent offline storage; ข้อมูลจริงที่โหลดไว้ดูต่อได้ขณะ tab ยังเปิด แต่ไม่รับรอง cold-start offline ขณะไม่มีเครือข่ายจะเก็บฟอร์มไว้และไม่แสดงว่าบันทึกสำเร็จ
-- การ revoke session อื่นหยุดการ refresh; access token ที่ออกแล้วอาจใช้ได้จนหมดอายุตาม Supabase Auth
-- แอปเป็น wellness journal ไม่มี calorie budget, BMI, เป้าลดน้ำหนักบังคับ หรือคำแนะนำทางการแพทย์
+Wellio เป็น wellness journal ไม่มี calorie budget, BMI, เป้าลดน้ำหนักบังคับ หรือคำแนะนำการแพทย์
