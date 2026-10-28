@@ -1,4 +1,13 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  listDrafts,
+  draftScope,
+  draftKey,
+  writeDraft,
+  deleteDraft,
+  draftMedia,
+  type Draft,
+} from "./drafts";
 import {
   Check,
   Utensils,
@@ -9,6 +18,9 @@ import {
   Trash2,
   Camera,
   ChevronDown,
+  RotateCcw,
+  RotateCw,
+  Crop,
 } from "lucide-react";
 import { Modal, ErrorBox } from "../../components/ui";
 import { localInput, fromLocal, dayKey, thaiDate } from "../../lib/dates";
@@ -30,17 +42,14 @@ import {
   prepareMealPhoto,
   storeMealPhoto,
   removeMealPhoto,
+  transformMealPhoto,
+  mealPhotoUrl,
 } from "../meals/photos";
 import { MealPhoto } from "../meals/MealPhoto";
-export const kindIcons = {
-  meal: Utensils,
-  activity: Footprints,
-  weight: Scale,
-  water: Droplets,
-};
+export { kindIcons } from "./kindIcons";
 export function EntryForm({
   kind,
-  initial,
+  initial: requestedInitial,
   onClose,
   onSaved,
 }: {
@@ -51,9 +60,44 @@ export function EntryForm({
 }) {
   const journal = useJournal();
   const { profile, demo } = useAuth();
+  const [setup] = useState(() => {
+    const scope = draftScope(profile!.user_id, demo);
+    const drafts = listDrafts(scope);
+    const pending = requestedInitial?._draftKey
+      ? drafts.find((d) => d.key === requestedInitial._draftKey)
+      : requestedInitial?.id
+        ? drafts.find(
+            (d) => d.kind === kind && d.initial?.id === requestedInitial.id,
+          )
+        : !requestedInitial
+          ? drafts.find((d) => d.kind === kind && !d.initial?.id)
+          : undefined;
+    const source = pending?.initial || requestedInitial;
+    const id = pending?.id || String(source?.id || crypto.randomUUID());
+    return {
+      pending,
+      source,
+      id,
+      key:
+        pending?.key || draftKey(scope, kind, source?.id ? `edit_${id}` : id),
+    };
+  });
+  const initial = setup.source;
+  const draft = setup.pending;
+  const activeDraft = useRef(true);
+  const mediaPersisted = useRef(true);
   const [photo, setPhoto] = useState<Blob | null>(null);
-  const [removePhoto, setRemovePhoto] = useState(false);
-  const [preparing, setPreparing] = useState(false);
+  const [sourcePhoto, setSourcePhoto] = useState<Blob | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(draft?.removePhoto || false);
+  const [preparing, setPreparing] = useState(Boolean(draft?.photoKey));
+  const [mediaReady, setMediaReady] = useState(!draft?.photoKey);
+  const [draftStored, setDraftStored] = useState(true);
+  const [uploaded, setUploaded] = useState<string | undefined>(draft?.uploaded);
+  const [uploadId, setUploadId] = useState(
+    draft?.photoKey?.split(":").at(-1) || crypto.randomUUID(),
+  );
+  const [progress, setProgress] = useState<number | null>(null);
+  const [sending, setSending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   useEffect(() => {
@@ -68,37 +112,48 @@ export function EntryForm({
   const existingPhoto =
     typeof initial?.photo_path === "string" ? initial.photo_path : null;
   const [error, setError] = useState("");
-  const [name, setName] = useState(String(initial?.name || ""));
+  const [name, setName] = useState(draft?.name ?? String(initial?.name || ""));
   const [category, setCategory] = useState(
-    String(
-      initial?.meal_type ||
-        initial?.activity_type ||
-        (kind === "meal" ? "breakfast" : "walking"),
-    ),
+    draft?.category ??
+      String(
+        initial?.meal_type ||
+          initial?.activity_type ||
+          (kind === "meal" ? "breakfast" : "walking"),
+      ),
   );
   const [when, setWhen] = useState(
-    kind === "weight"
-      ? String(initial?.checkin_date || dayKey())
-      : localInput(
-          String(
-            initial?.eaten_at ||
-              initial?.started_at ||
-              initial?.consumed_at ||
-              new Date().toISOString(),
-          ),
-        ),
+    draft?.when ??
+      (kind === "weight"
+        ? String(initial?.checkin_date || initial?._day || dayKey())
+        : initial?._day
+          ? `${String(initial._day)}T${localInput().slice(11)}`
+          : localInput(
+              String(
+                initial?.eaten_at ||
+                  initial?.started_at ||
+                  initial?.consumed_at ||
+                  new Date().toISOString(),
+              ),
+            )),
   );
   const [amount, setAmount] = useState(
-    String(
-      initial?.duration_minutes ||
-        initial?.weight_kg ||
-        initial?.amount_ml ||
-        (kind === "water" ? 250 : ""),
-    ),
+    draft?.amount ??
+      String(
+        initial?.duration_minutes ||
+          initial?.weight_kg ||
+          initial?.amount_ml ||
+          (kind === "water" ? 250 : ""),
+      ),
   );
-  const [notes, setNotes] = useState(String(initial?.notes || ""));
-  const [portion, setPortion] = useState(String(initial?.portion_text || ""));
-  const [effort, setEffort] = useState(String(initial?.effort || "light"));
+  const [notes, setNotes] = useState(
+    draft?.notes ?? String(initial?.notes || ""),
+  );
+  const [portion, setPortion] = useState(
+    draft?.portion ?? String(initial?.portion_text || ""),
+  );
+  const [effort, setEffort] = useState(
+    draft?.effort ?? String(initial?.effort || "light"),
+  );
   const [discarding, setDiscarding] = useState(false);
   const snapshot = JSON.stringify([
     name,
@@ -110,7 +165,70 @@ export function EntryForm({
     effort,
   ]);
   const [original] = useState(snapshot);
-  const dirty = snapshot !== original || Boolean(photo) || removePhoto;
+  const dirty =
+    snapshot !== original || Boolean(photo) || removePhoto || Boolean(draft);
+  useEffect(() => {
+    if (!draft?.photoKey) return;
+    let canceled = false;
+    draftMedia<Blob | undefined>("readonly", (store) =>
+      store.get(draft.photoKey!),
+    )
+      .then((blob) => {
+        if (!canceled) {
+          if (blob) {
+            setPhoto(blob);
+            setSourcePhoto(blob);
+          } else setError("รูปที่แนบค้างไว้หายไป กรุณาเลือกรูปอีกครั้ง");
+        }
+      })
+      .catch(() => {
+        if (!canceled)
+          setError("เปิดรูปที่แนบค้างไว้ไม่ได้ กรุณาเลือกรูปอีกครั้ง");
+      })
+      .finally(() => {
+        if (!canceled) {
+          setPreparing(false);
+          setMediaReady(true);
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, []);
+  useEffect(() => {
+    if (!activeDraft.current || !mediaReady) return;
+    if (!dirty) {
+      deleteDraft(setup.key);
+      return;
+    }
+    const current: Draft = {
+      key: setup.key,
+      kind,
+      initial,
+      id: setup.id,
+      name,
+      category,
+      when,
+      amount,
+      notes,
+      portion,
+      effort,
+      removePhoto,
+      photoKey: photo ? `${setup.key}:photo:${uploadId}` : undefined,
+      uploaded,
+      updatedAt: Date.now(),
+    };
+    setDraftStored(writeDraft(current) && mediaPersisted.current);
+  }, [snapshot, photo, removePhoto, uploaded, uploadId, mediaReady]);
+  const discard = () => {
+    activeDraft.current = false;
+    deleteDraft(setup.key);
+    if (photo)
+      void draftMedia("readwrite", (s) =>
+        s.delete(`${setup.key}:photo:${uploadId}`),
+      ).catch(() => {});
+    onClose();
+  };
   const requestClose = () => {
     if (dirty) setDiscarding(true);
     else onClose();
@@ -119,10 +237,43 @@ export function EntryForm({
     setPreparing(true);
     setError("");
     try {
-      setPhoto(await prepareMealPhoto(file));
+      const blob = await prepareMealPhoto(file);
+      await persistPhoto(blob);
+      setSourcePhoto(blob);
       setRemovePhoto(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "เตรียมรูปไม่สำเร็จ");
+    } finally {
+      setPreparing(false);
+    }
+  }
+  async function persistPhoto(blob: Blob) {
+    const photoId = crypto.randomUUID();
+    try {
+      await draftMedia("readwrite", (store) =>
+        store.put(blob, `${setup.key}:photo:${photoId}`),
+      );
+      mediaPersisted.current = true;
+    } catch {
+      mediaPersisted.current = false;
+      setDraftStored(false);
+    }
+    setPhoto(blob);
+    setUploadId(photoId);
+    setUploaded(undefined);
+  }
+  async function adjustPhoto(rotation: number, square = false, reset = false) {
+    if (!photo || preparing || submitting) return;
+    setPreparing(true);
+    setError("");
+    try {
+      await persistPhoto(
+        reset && sourcePhoto
+          ? sourcePhoto
+          : await transformMealPhoto(photo, rotation, square),
+      );
+    } catch {
+      setError("ปรับรูปไม่สำเร็จ กรุณาลองอีกครั้ง");
     } finally {
       setPreparing(false);
     }
@@ -132,8 +283,7 @@ export function EntryForm({
     if (submitting || preparing) return;
     setSubmitting(true);
     setError("");
-    let uploaded: string | undefined;
-    let saved = false;
+    let nextUploaded = uploaded;
     try {
       const raw =
         kind === "meal"
@@ -166,10 +316,27 @@ export function EntryForm({
         setError(parsed.error.issues[0].message);
         return;
       }
-      if (kind === "meal" && photo) {
-        if (!profile) throw new Error("กรุณาเลือกบัญชีก่อน");
-        uploaded = await storeMealPhoto(photo, profile.user_id, demo);
+      if (kind === "meal" && photo && nextUploaded) {
+        try {
+          await mealPhotoUrl(nextUploaded, demo);
+        } catch {
+          nextUploaded = undefined;
+          setUploaded(undefined);
+        }
       }
+      if (kind === "meal" && photo && !nextUploaded) {
+        if (!profile) throw new Error("กรุณาเลือกบัญชีก่อน");
+        setProgress(0);
+        nextUploaded = await storeMealPhoto(
+          photo,
+          profile.user_id,
+          demo,
+          setProgress,
+          uploadId,
+        );
+        setUploaded(nextUploaded);
+      }
+      setSending(true);
       await journal.save(
         (
           {
@@ -182,13 +349,22 @@ export function EntryForm({
         {
           ...parsed.data,
           ...(kind === "meal"
-            ? { photo_path: uploaded || (removePhoto ? null : existingPhoto) }
+            ? {
+                photo_path:
+                  nextUploaded || (removePhoto ? null : existingPhoto),
+              }
             : {}),
-          ...(initial?.id ? { id: initial.id } : {}),
+          id: setup.id,
         },
+        { create: !initial?.id },
       );
-      saved = true;
-      if (existingPhoto && (uploaded || removePhoto) && profile) {
+      activeDraft.current = false;
+      deleteDraft(setup.key);
+      if (photo)
+        void draftMedia("readwrite", (s) =>
+          s.delete(`${setup.key}:photo:${uploadId}`),
+        ).catch(() => {});
+      if (existingPhoto && (nextUploaded || removePhoto) && profile) {
         try {
           await removeMealPhoto(existingPhoto, profile.user_id, demo);
         } catch {
@@ -199,18 +375,12 @@ export function EntryForm({
       }
       onSaved();
     } catch (e) {
-      if (uploaded && !saved && profile) {
-        try {
-          await removeMealPhoto(uploaded, profile.user_id, demo);
-        } catch {
-          console.warn(
-            "Unused meal photo cleanup will be retried by maintenance.",
-          );
-        }
-      }
+      // A lost response can follow a committed write. Retain its photo and stable row ID for safe retry.
       setError(e instanceof Error ? e.message : "บันทึกไม่สำเร็จ");
     } finally {
       setSubmitting(false);
+      setSending(false);
+      setProgress(null);
     }
   }
   return (
@@ -226,6 +396,25 @@ export function EntryForm({
             {initial?.id ? "แก้ไขรายการเดิม" : "วันที่และเวลาใส่ให้แล้ว"}
           </p>
           {error && <ErrorBox message={error} />}
+          {dirty && (
+            <p className="draft-hint" role="status">
+              {draftStored
+                ? "จำข้อมูลที่กรอกไว้บนอุปกรณ์นี้แล้ว ยังไม่ส่งเข้าบันทึกจนกว่าจะกดบันทึก"
+                : "อุปกรณ์นี้ยังจำข้อมูลค้างไม่ได้ กรุณาอย่าปิดฟอร์มก่อนบันทึก"}
+            </p>
+          )}
+          {submitting && (
+            <div className="save-progress" role="status">
+              {sending
+                ? "กำลังยืนยันการบันทึก… กรุณารอสักครู่"
+                : progress === null
+                  ? "กำลังตรวจข้อมูลก่อนส่ง…"
+                  : `กำลังส่งรูป ${progress}%`}
+              {!sending && progress !== null && (
+                <progress max="100" value={progress} />
+              )}
+            </div>
+          )}
           <fieldset className="form-content" disabled={submitting}>
             {kind === "meal" && (
               <>
@@ -279,10 +468,46 @@ export function EntryForm({
                   {preview ? (
                     <div className="photo-preview">
                       <img src={preview} alt="ตัวอย่างรูปอาหารก่อนบันทึก" />
+                      <div className="photo-edit-actions">
+                        <button
+                          type="button"
+                          disabled={preparing}
+                          onClick={() => void adjustPhoto(-90)}
+                        >
+                          <RotateCcw size={17} />
+                          หมุนซ้าย
+                        </button>
+                        <button
+                          type="button"
+                          disabled={preparing}
+                          onClick={() => void adjustPhoto(90)}
+                        >
+                          <RotateCw size={17} />
+                          หมุนขวา
+                        </button>
+                        <button
+                          type="button"
+                          disabled={preparing}
+                          onClick={() => void adjustPhoto(0, true)}
+                        >
+                          <Crop size={17} />
+                          ตัดสี่เหลี่ยม
+                        </button>
+                        <button
+                          type="button"
+                          disabled={preparing}
+                          onClick={() => void adjustPhoto(0, false, true)}
+                        >
+                          คืนรูปเดิม
+                        </button>
+                      </div>
                       <button
                         type="button"
                         className="text-button danger-text"
-                        onClick={() => setPhoto(null)}
+                        onClick={() => {
+                          setPhoto(null);
+                          setUploaded(undefined);
+                        }}
                       >
                         <Trash2 size={16} />
                         นำรูปที่เลือกออก
@@ -345,7 +570,7 @@ export function EntryForm({
                       </span>
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
                         aria-label="แนบรูปอาหาร"
                         className="sr-only"
                         disabled={preparing || submitting}
@@ -358,7 +583,7 @@ export function EntryForm({
                     </label>
                   </div>
                   <small>
-                    แนบได้ 1 รูป · JPG, PNG หรือ WebP ไม่เกิน 10 MB
+                    แนบได้ 1 รูป · JPG, PNG, WebP หรือ HEIC ไม่เกิน 10 MB
                     ระบบย่อรูปให้อัตโนมัติ
                   </small>
                   {demo && (
@@ -558,7 +783,14 @@ export function EntryForm({
             >
               กลับไปกรอกต่อ
             </button>
-            <button className="button secondary" onClick={onClose}>
+            <button
+              className="button secondary"
+              disabled={!draftStored}
+              onClick={onClose}
+            >
+              เก็บไว้แล้วปิด
+            </button>
+            <button className="button secondary" onClick={discard}>
               ปิดโดยไม่บันทึก
             </button>
           </div>

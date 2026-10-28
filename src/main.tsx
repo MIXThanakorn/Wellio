@@ -10,20 +10,46 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./features/auth/AuthProvider";
 import { Enrollment } from "./features/auth/Enrollment";
-import { AppShell } from "./components/AppShell";
-import { Dashboard } from "./features/dashboard/Dashboard";
-import { JournalPage } from "./features/journal/JournalPage";
-import { CalendarPage } from "./features/calendar/CalendarPage";
+const AppShell = lazy(() =>
+  import("./components/AppShell").then((m) => ({ default: m.AppShell })),
+);
+const Dashboard = lazy(() =>
+  import("./features/dashboard/Dashboard").then((m) => ({
+    default: m.Dashboard,
+  })),
+);
+const JournalPage = lazy(() =>
+  import("./features/journal/JournalPage").then((m) => ({
+    default: m.JournalPage,
+  })),
+);
+const CalendarPage = lazy(() =>
+  import("./features/calendar/CalendarPage").then((m) => ({
+    default: m.CalendarPage,
+  })),
+);
 const ProgressPage = lazy(() =>
   import("./features/insights/ProgressPage").then((module) => ({
     default: module.ProgressPage,
   })),
 );
-import { PlansPage } from "./features/plans/PlansPage";
-import { RemindersPage } from "./features/reminders/RemindersPage";
-import { SettingsPage } from "./features/settings/SettingsPage";
+const PlansPage = lazy(() =>
+  import("./features/plans/PlansPage").then((m) => ({ default: m.PlansPage })),
+);
+const RemindersPage = lazy(() =>
+  import("./features/reminders/RemindersPage").then((m) => ({
+    default: m.RemindersPage,
+  })),
+);
+const SettingsPage = lazy(() =>
+  import("./features/settings/SettingsPage").then((m) => ({
+    default: m.SettingsPage,
+  })),
+);
 import { Loading } from "./components/ui";
-import { GuidePage } from "./features/guide/GuidePage";
+const GuidePage = lazy(() =>
+  import("./features/guide/GuidePage").then((m) => ({ default: m.GuidePage })),
+);
 import "./styles.css";
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, gcTime: 300000 } },
@@ -40,34 +66,38 @@ function App() {
   if (!profile)
     return location.pathname === "/guide" ? (
       <main className="public-guide" id="main-content">
-        <GuidePage />
+        <Suspense fallback={<Loading />}>
+          <GuidePage />
+        </Suspense>
       </main>
     ) : (
       <Enrollment />
     );
   return (
-    <Routes>
-      <Route element={<AppShell />}>
-        <Route index element={<Dashboard />} />
-        <Route path="meals" element={<JournalPage />} />
-        <Route path="activities" element={<JournalPage />} />
-        <Route path="calendar" element={<CalendarPage />} />
-        <Route
-          path="progress"
-          element={
-            <Suspense fallback={<Loading />}>
-              <ProgressPage />
-            </Suspense>
-          }
-        />
-        <Route path="plans" element={<PlansPage />} />
-        <Route path="reminders" element={<RemindersPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="guide" element={<GuidePage />} />
-        <Route path="enroll" element={<Navigate to="/" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+    <Suspense fallback={<Loading />}>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route index element={<Dashboard />} />
+          <Route path="meals" element={<JournalPage />} />
+          <Route path="activities" element={<JournalPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
+          <Route
+            path="progress"
+            element={
+              <Suspense fallback={<Loading />}>
+                <ProgressPage />
+              </Suspense>
+            }
+          />
+          <Route path="plans" element={<PlansPage />} />
+          <Route path="reminders" element={<RemindersPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="guide" element={<GuidePage />} />
+          <Route path="enroll" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 }
 class ErrorBoundary extends React.Component<

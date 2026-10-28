@@ -4,6 +4,14 @@ import {
   MAX_PHOTO_SOURCE_BYTES,
 } from "../src/features/meals/photoValidation";
 describe("meal photo input boundaries", () => {
+  it("accepts native HEIC MIME and extension-only phone exports", () => {
+    expect(() =>
+      validatePhotoFile({ type: "image/heic", size: 1234 }),
+    ).not.toThrow();
+    expect(() =>
+      validatePhotoFile({ type: "", name: "IMG_1234.HEIC", size: 1234 }),
+    ).not.toThrow();
+  });
   for (const type of ["image/jpeg", "image/png", "image/webp"])
     it(`accepts ${type}`, () =>
       expect(() => validatePhotoFile({ type, size: 1234 })).not.toThrow());

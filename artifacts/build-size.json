@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-10-28T01:53:24.220Z",
+  "initialFiles": [
+    "assets/index-CPxKStoD.js",
+    "assets/rolldown-runtime-XKyaHtl9.js",
+    "assets/react-C1iE8mnY.js",
+    "assets/supabase-Bwm3Z89P.js"
+  ],
+  "initialJavaScriptBytes": 522328,
+  "initialJavaScriptGzipBytes": 152330,
+  "previousInitialJavaScriptBytes": 728480,
+  "previousInitialJavaScriptGzipBytes": 205890,
+  "initialGzipReductionPercent": 26,
+  "largestApplicationChunkBytes": 380618,
+  "note": "Static build byte comparison, not a measured device loading time. HEIC decoder is a separate on-demand worker."
+}

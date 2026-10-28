@@ -1,13 +1,46 @@
-import { supabase } from "../../lib/supabase";
-import { validatePhotoFile } from "./photoValidation";
+import { supabase, storageConnection } from "../../lib/supabase";
+import { validatePhotoFile, isHeicPhoto } from "./photoValidation";
+function convertHeic(blob: Blob): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./heic.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    const timer = setTimeout(() => {
+      worker.terminate();
+      reject(new Error("เตรียมรูปนี้นานเกินไป กรุณาลองรูปที่เล็กลง"));
+    }, 45000);
+    const finish = () => {
+      clearTimeout(timer);
+      worker.terminate();
+    };
+    worker.onmessage = (e) => {
+      finish();
+      if (e.data.blob) resolve(e.data.blob);
+      else reject(new Error(e.data.error));
+    };
+    worker.onerror = () => {
+      finish();
+      reject(new Error("เปิดรูป HEIC ไม่สำเร็จ กรุณาลองรูปอื่น"));
+    };
+    worker.postMessage(blob);
+  });
+}
 export const PHOTO_BUCKET = "meal-photos";
 export async function prepareMealPhoto(file: File): Promise<Blob> {
   validatePhotoFile(file);
-  const objectUrl = URL.createObjectURL(file);
+  let objectUrl = URL.createObjectURL(file);
   try {
     const image = new Image();
     image.src = objectUrl;
-    await image.decode();
+    try {
+      await image.decode();
+    } catch (error) {
+      if (!isHeicPhoto(file)) throw error;
+      URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(await convertHeic(file));
+      image.src = objectUrl;
+      await image.decode();
+    }
     if (
       !image.naturalWidth ||
       !image.naturalHeight ||
@@ -79,6 +112,8 @@ export async function storeMealPhoto(
   blob: Blob,
   owner: string,
   demo: boolean,
+  onProgress: (value: number) => void = () => {},
+  photoId: string = crypto.randomUUID(),
 ): Promise<string> {
   const extension =
     blob.type === "image/png"
@@ -86,22 +121,93 @@ export async function storeMealPhoto(
       : blob.type === "image/jpeg"
         ? "jpg"
         : "webp";
-  const path = `${demo ? "demo" : owner}/${crypto.randomUUID()}.${extension}`;
+  const path = `${demo ? "demo" : owner}/${photoId}.${extension}`;
   if (demo) {
     await demoPhotoStore("readwrite", (store) => store.put(blob, path));
+    onProgress(100);
     return path;
   }
   if (!supabase) throw new Error("ยังไม่เชื่อมต่อระบบ");
-  const { error } = await supabase.storage
-    .from(PHOTO_BUCKET)
-    .upload(path, blob, {
-      contentType: blob.type,
-      cacheControl: "300",
-      upsert: false,
-    });
-  if (error)
-    throw new Error("อัปโหลดรูปไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง");
+  if (!storageConnection) throw new Error("ยังไม่เชื่อมต่อระบบ");
+  const connection = storageConnection;
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error("กรุณาเลือกชื่อก่อนบันทึก");
+  const status = await new Promise<number>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(
+      "POST",
+      `${connection.url}/storage/v1/object/${PHOTO_BUCKET}/${path}`,
+    );
+    xhr.setRequestHeader("Authorization", `Bearer ${session.access_token}`);
+    xhr.setRequestHeader("apikey", connection.key);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.timeout = 60000;
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable)
+        onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100)));
+    };
+    xhr.onload = () => resolve(xhr.status);
+    const failed = () =>
+      reject(
+        new Error(
+          "ส่งรูปยังไม่สำเร็จ ข้อมูลยังอยู่ กรุณาตรวจอินเทอร์เน็ตแล้วกดบันทึกอีกครั้ง",
+        ),
+      );
+    xhr.onerror = failed;
+    xhr.ontimeout = failed;
+    xhr.onabort = failed;
+    const body = new FormData();
+    body.append("cacheControl", "300");
+    body.append("", blob, `${photoId}.${extension}`);
+    xhr.send(body);
+  });
+  if (status < 200 || status >= 300) {
+    // Reusing the same photo ID makes a retry safe even if the first response was lost.
+    const { error } = await supabase.storage
+      .from(PHOTO_BUCKET)
+      .createSignedUrl(path, 60);
+    if (error)
+      throw new Error(
+        "อัปโหลดรูปยังไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง",
+      );
+  }
+  onProgress(100);
   return path;
+}
+export async function transformMealPhoto(
+  blob: Blob,
+  rotation: number,
+  square = false,
+): Promise<Blob> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const turn = ((rotation % 360) + 360) % 360;
+    const w = turn % 180 ? img.naturalHeight : img.naturalWidth,
+      h = turn % 180 ? img.naturalWidth : img.naturalHeight;
+    const canvas = document.createElement("canvas");
+    canvas.width = square ? Math.min(w, h) : w;
+    canvas.height = square ? Math.min(w, h) : h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("อุปกรณ์นี้ปรับรูปไม่ได้");
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((turn * Math.PI) / 180);
+    ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+    return await new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (value) =>
+          value ? resolve(value) : reject(new Error("ปรับรูปไม่สำเร็จ")),
+        "image/webp",
+        0.86,
+      ),
+    );
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 export async function removeMealPhoto(
   path: string,

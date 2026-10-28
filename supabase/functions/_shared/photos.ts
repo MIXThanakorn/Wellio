@@ -3,6 +3,8 @@ const bucket = "meal-photos";
 export async function maintainMealPhotos(db: SupabaseClient) {
   let removed = 0;
   try {
+    const {error:purgeError}=await db.rpc('purge_expired_journal_entries');
+    if(purgeError)throw new Error('Cannot purge expired journal trash');
     const { data: queued, error } = await db.rpc("pending_meal_photo_cleanup");
     if (error) throw new Error("Cannot read photo cleanup queue");
     const paths = (queued || []).map(

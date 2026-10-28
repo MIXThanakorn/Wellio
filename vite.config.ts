@@ -6,6 +6,22 @@ export default defineConfig(({ mode }) => {
   // Compatibility with the supplied .env.local. Only the public URL/key are exposed.
   return {
     plugins: [react()],
+    build: {
+      manifest: true,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: "react",
+                test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+              },
+              { name: "supabase", test: /node_modules[\\/]@supabase[\\/]/ },
+            ],
+          },
+        },
+      },
+    },
     define: {
       "import.meta.env.VITE_SUPABASE_URL": JSON.stringify(
         env.VITE_SUPABASE_URL || env.SUPABASE_URL || "",

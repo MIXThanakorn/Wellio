@@ -69,6 +69,7 @@ Deno.serve(async (req: Request) => {
     const { data: meal, error: mealError } = await db
       .from("meal_entries")
       .select("eaten_at")
+      .is('deleted_at',null)
       .eq("owner_user_id", p.owner_user_id)
       .order("eaten_at", { ascending: false })
       .limit(1)
@@ -124,6 +125,7 @@ Deno.serve(async (req: Request) => {
           db
             .from("meal_entries")
             .select("eaten_at")
+            .is('deleted_at',null)
             .eq("owner_user_id", p.owner_user_id)
             .order("eaten_at", { ascending: false })
             .limit(1)

@@ -1,19 +1,22 @@
 {
-  "checkedAt": "2026-10-27T02:02:39.602Z",
+  "checkedAt": "2026-10-28T01:49:26.953Z",
   "passed": true,
   "results": [
     "Real UI upload, automatic resize and signed image display",
+    "Lost upload and committed-save responses can be retried after reload without duplicate rows or objects",
     "Photo persists after reload",
     "Selected-owner download allowed; foreign download and signing denied",
     "Foreign upload/delete cannot change the owner photo",
     "Database rejects attaching a foreign owner photo",
     "Bucket does not serve public image URLs",
     "Replace photo retains meal and removes its old Storage object",
-    "Deleting meal queues its last image for Storage API maintenance"
+    "Soft delete preserves its private image; undo survives reload and foreign restore is denied",
+    "Final fixture removal queues its last image for Storage API maintenance",
+    "An offline save fails promptly without losing input and retries once connectivity returns"
   ],
   "testPhotoPaths": [
-    "f540f925-0be6-43c9-88bf-0bb5d0a227a1/02ae3807-3c45-41c8-90de-7a4d89eca9fe.webp",
-    "f540f925-0be6-43c9-88bf-0bb5d0a227a1/f3ecac03-5d80-4d67-9afb-1bfaac134705.webp"
+    "f540f925-0be6-43c9-88bf-0bb5d0a227a1/6e647645-e766-4431-9449-ba71308cb454.webp",
+    "f540f925-0be6-43c9-88bf-0bb5d0a227a1/4c5b561d-fa07-4de0-8cf7-09e6d2006bff.webp"
   ],
   "maintenancePending": false,
   "maintenance": {

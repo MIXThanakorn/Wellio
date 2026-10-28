@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { Pencil, Trash2, Star } from "lucide-react";
+import { Pencil, Trash2, Star, Copy } from "lucide-react";
+import { rememberDeletion } from "./UndoNotice";
+import { draftScope } from "./drafts";
+import { useAuth } from "../auth/AuthProvider";
 import { dayKey, timeLabel } from "../../lib/dates";
 import {
   activityLabels,
@@ -7,7 +10,7 @@ import {
   type EntryKind,
   type Journal,
 } from "../../lib/types";
-import { kindIcons } from "./EntryForm";
+import { kindIcons } from "./kindIcons";
 import { useUI } from "../../components/AppShell";
 import { useJournal } from "./useJournal";
 import { Empty, Modal, ErrorBox } from "../../components/ui";
@@ -78,6 +81,7 @@ export function Timeline({
   search = "",
   mealType = "all",
   showDate = false,
+  onAdd,
 }: {
   data: Journal;
   day?: string;
@@ -85,9 +89,11 @@ export function Timeline({
   search?: string;
   mealType?: string;
   showDate?: boolean;
+  onAdd?: (kind?: EntryKind) => void;
 }) {
   const { add, notify } = useUI();
   const journal = useJournal();
+  const { profile, demo } = useAuth();
   const [deleting, setDeleting] = useState<Item | null>(null);
   const [error, setError] = useState("");
   const items = timelineItems(data, day).filter(
@@ -114,8 +120,20 @@ export function Timeline({
         )[deleting.kind],
         deleting.id,
       );
+      rememberDeletion(draftScope(profile!.user_id, demo), {
+        collection: (
+          {
+            meal: "meals",
+            activity: "activities",
+            weight: "checkins",
+            water: "water",
+          } as const
+        )[deleting.kind],
+        id: deleting.id,
+        title: deleting.title,
+        expires: Date.now() + 30000,
+      });
       setDeleting(null);
-      notify("ลบบันทึกแล้ว");
     } catch (e) {
       setError(e instanceof Error ? e.message : "ลบไม่สำเร็จ");
     }
@@ -148,8 +166,12 @@ export function Timeline({
               ? "ลองเปลี่ยนคำค้น หรือเลือกค้นหาทุกวันเพื่อดูย้อนหลัง"
               : "กดเพิ่มบันทึกเพื่อเริ่มจดอาหาร น้ำดื่ม หรือกิจกรรม"
           }
-          action={search ? undefined : "เพิ่มบันทึกแรก"}
-          onAction={() => add(filter)}
+          action={
+            search || (day && day > dayKey()) ? undefined : "เพิ่มบันทึกแรก"
+          }
+          onAction={() =>
+            onAdd ? onAdd(filter) : add(filter, day ? { _day: day } : undefined)
+          }
         />
       ) : (
         <div className="timeline">
@@ -181,6 +203,24 @@ export function Timeline({
                     )}
                 </div>
                 <div className="entry-actions">
+                  {item.kind === "meal" && (
+                    <button
+                      className="icon-button"
+                      aria-label={`กินเหมือนเดิม ${item.title}`}
+                      onClick={() =>
+                        add("meal", {
+                          name: item.title,
+                          meal_type: item.row.meal_type,
+                          portion_text: item.row.portion_text,
+                          notes: item.notes,
+                          ...(day && day !== dayKey() ? { _day: day } : {}),
+                        })
+                      }
+                    >
+                      <Copy size={16} />
+                      <span>กินเหมือนเดิม</span>
+                    </button>
+                  )}
                   {item.kind === "meal" &&
                     !data.favorites.some((f) => f.name === item.title) && (
                       <button
@@ -216,7 +256,10 @@ export function Timeline({
       )}
       {deleting && (
         <Modal title="ลบบันทึกนี้?" onClose={() => setDeleting(null)}>
-          <p>“{deleting.title}” จะถูกลบออกจากบันทึกของคุณ</p>
+          <p>
+            “{deleting.title}” จะถูกนำออกจากบันทึก กด “เลิกทำ” ได้ภายใน 30
+            วินาทีหลังลบ
+          </p>
           {error && <ErrorBox message={error} />}
           <div className="dialog-actions">
             <button

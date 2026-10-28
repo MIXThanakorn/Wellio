@@ -1,5 +1,12 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  lazy,
+  Suspense,
+} from "react";
 import {
   Heart,
   LayoutDashboard,
@@ -17,12 +24,21 @@ import {
   BookOpen,
 } from "lucide-react";
 import { useAuth } from "../features/auth/AuthProvider";
-import { EntryForm, kindIcons } from "../features/journal/EntryForm";
+import { kindIcons } from "../features/journal/kindIcons";
+const EntryForm = lazy(() =>
+  import("../features/journal/EntryForm").then((m) => ({
+    default: m.EntryForm,
+  })),
+);
 import { Modal } from "./ui";
 import { kindLabels, type EntryKind } from "../lib/types";
+import { dayKey } from "../lib/dates";
+import { listDrafts, draftScope, type Draft } from "../features/journal/drafts";
+import { UndoNotice } from "../features/journal/UndoNotice";
 interface Actions {
   add: (kind?: EntryKind, initial?: Record<string, unknown>) => void;
   notify: (text: string) => void;
+  setEntryDay: (day?: string) => void;
 }
 const UIContext = createContext<Actions | null>(null);
 export function useUI() {
@@ -40,6 +56,10 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sheet, setSheet] = useState(false);
+  const [entryDay, setEntryDay] = useState<string | undefined>();
+  const [sheetInitial, setSheetInitial] = useState<
+    Record<string, unknown> | undefined
+  >();
   const [entry, setEntry] = useState<{
     kind: EntryKind;
     initial?: Record<string, unknown>;
@@ -47,6 +67,18 @@ export function AppShell() {
   const [toast, setToast] = useState("");
   const [leaving, setLeaving] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
+  const scope = draftScope(profile!.user_id, demo);
+  const [drafts, setDrafts] = useState<Draft[]>([]);
+  useEffect(() => {
+    const read = () => setDrafts(listDrafts(scope));
+    read();
+    window.addEventListener("wellio-drafts", read);
+    window.addEventListener("storage", read);
+    return () => {
+      window.removeEventListener("wellio-drafts", read);
+      window.removeEventListener("storage", read);
+    };
+  }, [scope]);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
     window.addEventListener("online", update);
@@ -62,10 +94,17 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, [toast]);
   const add: Actions["add"] = (kind, initial) => {
+    if (!initial?.id && !initial?._draftKey && entryDay && entryDay > dayKey())
+      return;
+    if (!initial?.id && !initial?._draftKey && entryDay && !initial?._day)
+      initial = { ...initial, _day: entryDay };
     if (kind) {
       setEntry({ kind, initial });
       setSheet(false);
-    } else setSheet(true);
+    } else {
+      setSheetInitial(initial);
+      setSheet(true);
+    }
   };
   const logout = async () => {
     if (leaving) return;
@@ -80,7 +119,7 @@ export function AppShell() {
     }
   };
   return (
-    <UIContext.Provider value={{ add, notify: setToast }}>
+    <UIContext.Provider value={{ add, notify: setToast, setEntryDay }}>
       <div className="app-shell">
         <aside className="sidebar">
           <NavLink to="/" className="brand">
@@ -209,6 +248,31 @@ export function AppShell() {
             </div>
           )}
           <main className="page-content" id="main-content">
+            {!entry && drafts.length > 0 && (
+              <div className="draft-resume" role="status">
+                <div>
+                  <b>
+                    มีบันทึกที่กรอกค้างไว้
+                    {drafts.length > 1 ? ` ${drafts.length} รายการ` : ""}
+                  </b>
+                  <p>
+                    {kindLabels[drafts[0].kind]}
+                    {drafts[0].name ? ` · ${drafts[0].name}` : ""}
+                  </p>
+                </div>
+                <button
+                  className="button secondary"
+                  onClick={() =>
+                    add(drafts[0].kind, {
+                      ...drafts[0].initial,
+                      _draftKey: drafts[0].key,
+                    })
+                  }
+                >
+                  กรอกต่อ
+                </button>
+              </div>
+            )}
             <Outlet />
           </main>
           <footer className="page-footer">
@@ -225,7 +289,11 @@ export function AppShell() {
             <NotebookPen size={21} />
             <span>บันทึก</span>
           </NavLink>
-          <button className="mobile-add" onClick={() => add()}>
+          <button
+            className="mobile-add"
+            disabled={Boolean(entryDay && entryDay > dayKey())}
+            onClick={() => add()}
+          >
             <span>
               <Plus size={25} />
             </span>
@@ -250,7 +318,7 @@ export function AppShell() {
                     key={kind}
                     className={`quick-option ${kind}`}
                     aria-label={`เพิ่ม${kindLabels[kind]}`}
-                    onClick={() => add(kind)}
+                    onClick={() => add(kind, sheetInitial)}
                   >
                     <span className="entry-icon">
                       <Icon size={24} />
@@ -276,15 +344,23 @@ export function AppShell() {
           </Modal>
         )}
         {entry && (
-          <EntryForm
-            kind={entry.kind}
-            initial={entry.initial}
-            onClose={() => setEntry(null)}
-            onSaved={() => {
-              setEntry(null);
-              setToast("บันทึกเรียบร้อยแล้ว");
-            }}
-          />
+          <Suspense
+            fallback={
+              <Modal title="กำลังเปิดแบบบันทึก…" onClose={() => setEntry(null)}>
+                <p role="status">รอสักครู่ กำลังเตรียมแบบบันทึกให้คุณ</p>
+              </Modal>
+            }
+          >
+            <EntryForm
+              kind={entry.kind}
+              initial={entry.initial}
+              onClose={() => setEntry(null)}
+              onSaved={() => {
+                setEntry(null);
+                setToast("บันทึกเรียบร้อยแล้ว");
+              }}
+            />
+          </Suspense>
         )}
         {toast && (
           <div className="toast" role="status">
@@ -294,6 +370,7 @@ export function AppShell() {
             </button>
           </div>
         )}
+        <UndoNotice scope={scope} onDone={setToast} />
       </div>
     </UIContext.Provider>
   );

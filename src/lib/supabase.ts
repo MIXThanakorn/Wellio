@@ -30,3 +30,4 @@ export const supabase =
         },
       })
     : null;
+export const storageConnection = url && safePublicKey(key) ? {url,key} : null;

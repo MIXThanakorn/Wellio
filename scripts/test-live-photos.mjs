@@ -42,6 +42,7 @@ const own = createClient(url, key, {
 const paths = [];
 const results = [];
 let mealId;
+let waterId;
 let completed = false;
 const title = `__wellio_photo_test_${crypto.randomUUID()}__`;
 try {
@@ -72,6 +73,44 @@ try {
     path: "artifacts/meal-photo-form-390.png",
     fullPage: false,
   });
+  let loseUpload = true,
+    loseSave = true;
+  await page.route(`${url}/storage/v1/object/meal-photos/**`, async (route) => {
+    if (loseUpload && route.request().method() === "POST") {
+      loseUpload = false;
+      const response = await route.fetch();
+      assert.ok(response.ok());
+      await route.abort("failed");
+    } else await route.continue();
+  });
+  await page.route(`${url}/rest/v1/meal_entries*`, async (route) => {
+    if (loseSave && route.request().method() === "POST") {
+      loseSave = false;
+      const response = await route.fetch();
+      assert.ok(response.ok());
+      await route.abort("failed");
+    } else await route.continue();
+  });
+  await dialog.getByRole("button", { name: "บันทึก", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("ส่งรูปยังไม่สำเร็จ", {
+    timeout: 30000,
+  });
+  await dialog.getByRole("button", { name: "บันทึก", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("บันทึกไม่สำเร็จ", {
+    timeout: 30000,
+  });
+  const early = await own
+    .from("meal_entries")
+    .select("*")
+    .eq("name", title)
+    .single();
+  assert.equal(early.error, null);
+  mealId = early.data.id;
+  paths.push(early.data.photo_path);
+  await page.reload();
+  await page.getByRole("button", { name: "กรอกต่อ", exact: true }).click();
+  dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel("ชื่ออาหาร")).toHaveValue(title);
   await dialog.getByRole("button", { name: "บันทึก", exact: true }).click();
   await expect(dialog).not.toBeVisible({ timeout: 30000 });
   await expect(
@@ -92,7 +131,15 @@ try {
     .single();
   assert.equal(error, null);
   mealId = meal.id;
-  paths.push(meal.photo_path);
+  if (!paths.includes(meal.photo_path)) paths.push(meal.photo_path);
+  const duplicateCheck = await own
+    .from("meal_entries")
+    .select("id")
+    .eq("name", title);
+  assert.equal(duplicateCheck.data.length, 1);
+  results.push(
+    "Lost upload and committed-save responses can be retried after reload without duplicate rows or objects",
+  );
   assert.ok(meal.photo_path.startsWith(owner + "/"));
   await page.reload();
   await expect(
@@ -183,6 +230,46 @@ try {
   await expect(
     page.getByRole("heading", { name: title, exact: true }),
   ).toHaveCount(0);
+  const removed = await own
+    .from("meal_entries")
+    .select("deleted_at,photo_path")
+    .eq("id", mealId)
+    .single();
+  assert.ok(removed.data.deleted_at);
+  assert.equal(
+    (await own.storage.from("meal-photos").download(updated.data.photo_path))
+      .error,
+    null,
+  );
+  const foreignRestore = await other
+    .from("meal_entries")
+    .update({ deleted_at: null })
+    .eq("id", mealId)
+    .select("id");
+  assert.deepEqual(foreignRestore.data, []);
+  await page.reload();
+  await page.getByRole("button", { name: "เลิกทำ", exact: true }).click();
+  await expect(
+    page.getByAltText(`รูปอาหาร ${title}`, { exact: true }),
+  ).toBeVisible({ timeout: 15000 });
+  assert.equal(
+    (
+      await own
+        .from("meal_entries")
+        .select("deleted_at")
+        .eq("id", mealId)
+        .single()
+    ).data.deleted_at,
+    null,
+  );
+  results.push(
+    "Soft delete preserves its private image; undo survives reload and foreign restore is denied",
+  );
+  // Hard-delete only this test fixture; production soft deletions expire after 24h.
+  assert.equal(
+    (await own.from("meal_entries").delete().eq("id", mealId)).error,
+    null,
+  );
   const queue = await own
     .from("meal_photo_cleanup")
     .select("photo_path")
@@ -196,7 +283,37 @@ try {
     assert.equal(remaining.data.length, 0);
   }
   results.push(
-    "Deleting meal queues its last image for Storage API maintenance",
+    "Final fixture removal queues its last image for Storage API maintenance",
+  );
+  await page.getByRole("button", { name: "เพิ่มบันทึก", exact: true }).click();
+  await page.getByRole("button", { name: "เพิ่มน้ำดื่ม", exact: true }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("ปริมาณน้ำ (มล.)").fill("333");
+  waterId = await page.evaluate(
+    () =>
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith("wellio:draft:"))
+        .map((k) => JSON.parse(localStorage.getItem(k)))
+        .filter((d) => d.kind === "water")
+        .sort((a, b) => b.updatedAt - a.updatedAt)[0].id,
+  );
+  await context.setOffline(true);
+  await dialog.getByRole("button", { name: "บันทึก", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("ออฟไลน์", {
+    timeout: 5000,
+  });
+  await expect(dialog.getByLabel("ปริมาณน้ำ (มล.)")).toHaveValue("333");
+  await context.setOffline(false);
+  await dialog.getByRole("button", { name: "บันทึก", exact: true }).click();
+  await expect(dialog).not.toBeVisible({ timeout: 30000 });
+  const water = await own
+    .from("water_entries")
+    .select("id,amount_ml")
+    .eq("id", waterId)
+    .single();
+  assert.equal(water.data.amount_ml, 333);
+  results.push(
+    "An offline save fails promptly without losing input and retries once connectivity returns",
   );
   completed = true;
   await writeFile(
@@ -217,6 +334,7 @@ try {
     `PASS: ${results.length} live meal-photo/Storage/RLS checks; queued cleanup is ready for cron verification`,
   );
 } finally {
+  if (waterId) await own.from("water_entries").delete().eq("id", waterId);
   if (mealId) await own.from("meal_entries").delete().eq("id", mealId);
   if (!completed && paths.length)
     await own.storage.from("meal-photos").remove(paths);

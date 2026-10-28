@@ -3,8 +3,23 @@ import { useAuth } from "../auth/AuthProvider";
 import { supabase } from "../../lib/supabase";
 import { tables, type Journal, type Preferences } from "../../lib/types";
 import { makeDemo } from "./demo";
-import { removeMealPhoto } from "../meals/photos";
 type Collection = Exclude<keyof Journal, "preferences">;
+const recoverable = new Set(["meals", "activities", "water", "checkins"]);
+function visibleDemo(data: Journal): Journal {
+  return {
+    ...data,
+    ...Object.fromEntries(
+      [...recoverable].map((name) => [
+        name,
+        (
+          data[name as Collection] as unknown as {
+            deleted_at?: string | null;
+          }[]
+        ).filter((r) => !r.deleted_at),
+      ]),
+    ),
+  };
+}
 const demoKey = "fitlog-demo-data-v1";
 function readDemo(): Journal {
   try {
@@ -20,12 +35,24 @@ function readDemo(): Journal {
 async function allRows(table: string, owner: string): Promise<unknown[]> {
   const rows: unknown[] = [];
   for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await supabase!
+    let request = supabase!
       .from(table)
       .select("*")
       .eq("owner_user_id", owner)
       .order("id")
       .range(offset, offset + 999);
+    if (
+      [
+        "meal_entries",
+        "activity_entries",
+        "water_entries",
+        "weight_checkins",
+      ].includes(table)
+    )
+      request = request.is("deleted_at", null);
+    const { data, error } = await request.abortSignal(
+      AbortSignal.timeout(30000),
+    );
     if (error) throw error;
     rows.push(...data);
     if (data.length < 1000) return rows;
@@ -40,7 +67,7 @@ export function useJournal() {
     queryKey: key,
     enabled: Boolean(owner),
     queryFn: async (): Promise<Journal> => {
-      if (demo) return readDemo();
+      if (demo) return visibleDemo(readDemo());
       if (!supabase || !owner) throw new Error("ยังไม่ได้เชื่อมต่อ Supabase");
       const names: Collection[] = [
         "meals",
@@ -79,9 +106,11 @@ export function useJournal() {
     retry: 1,
   });
   const mutation = useMutation({
+    networkMode: "always",
     mutationFn: async (input: {
       collection: Collection | "preferences";
-      action: "save" | "delete";
+      action: "save" | "delete" | "restore";
+      create?: boolean;
       value: Record<string, unknown>;
     }) => {
       if (!owner) throw new Error("กรุณาเลือกชื่อมิกหรือเนมก่อนบันทึก");
@@ -103,12 +132,28 @@ export function useJournal() {
             unknown
           >[];
           const id = input.value.id;
-          if (input.action === "delete" && input.collection === "meals") {
-            const removed = list.find((row) => row.id === id);
-            if (typeof removed?.photo_path === "string")
-              await removeMealPhoto(removed.photo_path, owner, true);
-          }
-          if (input.action === "delete")
+          if (
+            (input.action === "delete" || input.action === "restore") &&
+            recoverable.has(input.collection)
+          ) {
+            const row = list.find((r) => r.id === id);
+            if (!row) throw new Error("ไม่พบรายการนี้แล้ว");
+            if (
+              input.action === "restore" &&
+              input.collection === "checkins" &&
+              list.some(
+                (r) =>
+                  r.id !== id &&
+                  !r.deleted_at &&
+                  r.checkin_date === row.checkin_date,
+              )
+            )
+              throw new Error(
+                "มีน้ำหนักของวันนี้อยู่แล้ว กรุณาแก้ไขรายการปัจจุบัน",
+              );
+            row.deleted_at =
+              input.action === "restore" ? null : new Date().toISOString();
+          } else if (input.action === "delete")
             data[input.collection] = list.filter((r) => r.id !== id) as never;
           else {
             const row = {
@@ -126,7 +171,20 @@ export function useJournal() {
       }
       let request;
       const table = tables[input.collection];
-      if (input.action === "delete")
+      if (
+        (input.action === "delete" || input.action === "restore") &&
+        recoverable.has(input.collection)
+      )
+        request = supabase!
+          .from(table)
+          .update({
+            deleted_at:
+              input.action === "restore" ? null : new Date().toISOString(),
+          })
+          .eq("id", input.value.id)
+          .eq("owner_user_id", owner)
+          .select("id");
+      else if (input.action === "delete")
         request = supabase!
           .from(table)
           .delete()
@@ -141,6 +199,14 @@ export function useJournal() {
             { onConflict: "owner_user_id" },
           )
           .select("owner_user_id");
+      else if (input.create && input.value.id)
+        request = supabase!
+          .from(table)
+          .upsert(
+            { ...input.value, owner_user_id: owner },
+            { onConflict: "id" },
+          )
+          .select("id,deleted_at");
       else if (input.value.id) {
         const { id, ...rest } = input.value;
         request = supabase!
@@ -154,18 +220,23 @@ export function useJournal() {
           .from(table)
           .insert({ ...input.value, owner_user_id: owner })
           .select("id");
-      const { data, error } = await request;
+      const { data, error } = await request.abortSignal(
+        AbortSignal.timeout(30000),
+      );
       if (error)
         throw new Error(
           error.code === "23505"
             ? "มีบันทึกสำหรับวันนี้แล้ว กรุณาแก้ไขรายการเดิม"
             : "บันทึกไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตแล้วลองอีกครั้ง ข้อมูลในฟอร์มยังอยู่",
         );
-      if (!data?.length)
+      if (
+        !data?.length ||
+        data.some((row: Record<string, unknown>) => row.deleted_at)
+      )
         throw new Error("บันทึกไม่สำเร็จ อาจไม่มีสิทธิ์หรือรายการถูกลบแล้ว");
     },
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: key });
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: key });
     },
   });
   return {
@@ -173,9 +244,13 @@ export function useJournal() {
     save: (
       collection: Collection | "preferences",
       value: Record<string, unknown>,
-    ) => mutation.mutateAsync({ collection, action: "save", value }),
+      options?: { create?: boolean },
+    ) =>
+      mutation.mutateAsync({ collection, action: "save", value, ...options }),
     remove: (collection: Collection, id: string) =>
       mutation.mutateAsync({ collection, action: "delete", value: { id } }),
+    restore: (collection: Collection, id: string) =>
+      mutation.mutateAsync({ collection, action: "restore", value: { id } }),
     saving: mutation.isPending,
   };
 }

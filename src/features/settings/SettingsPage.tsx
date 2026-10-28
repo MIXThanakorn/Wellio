@@ -18,6 +18,8 @@ import { useUI } from "../../components/AppShell";
 import { supabase } from "../../lib/supabase";
 import { disableOtherPushDevices } from "../../lib/push";
 import { downloadCSV } from "../../lib/export";
+import { clearDrafts, draftScope } from "../journal/drafts";
+import { forgetDeletion } from "../journal/UndoNotice";
 import { ErrorBox, Modal } from "../../components/ui";
 import { clearDemoPhotos } from "../meals/photos";
 export function SettingsPage() {
@@ -77,7 +79,10 @@ export function SettingsPage() {
     setError("");
     try {
       if (confirmation !== "ลบข้อมูลของฉัน") return;
+      const scope = draftScope(profile!.user_id, demo);
       if (demo) {
+        await clearDrafts(draftScope(profile!.user_id, true));
+        forgetDeletion(scope);
         await clearDemoPhotos();
         localStorage.removeItem("fitlog-demo-data-v1");
         await leave();
@@ -86,6 +91,8 @@ export function SettingsPage() {
       }
       const { error } = await supabase!.rpc("clear_my_journal");
       if (error) throw error;
+      await clearDrafts(draftScope(profile!.user_id, false));
+      forgetDeletion(scope);
       await client.invalidateQueries({ queryKey: ["journal"] });
       setDeleting(false);
       setConfirmation("");
@@ -359,6 +366,12 @@ export function SettingsPage() {
             <p>
               Session เก็บไว้ในเบราว์เซอร์ของอุปกรณ์นี้ ไม่ควรใช้อุปกรณ์สาธารณะ
               สำหรับข้อมูลทดลอง เก็บในเบราว์เซอร์นี้และล้างได้
+            </p>
+            <p>
+              ฟอร์มที่ยังไม่บันทึกจะจำข้อความและรูปไว้บนอุปกรณ์นี้แยกตามชื่อที่เลือก
+              เลือก “ปิดโดยไม่บันทึก” เพื่อล้างฟอร์มนั้น หรือใช้
+              “ลบบันทึกทั้งหมดของฉัน”
+              เพื่อล้างข้อมูลค้างของบัญชีนี้บนอุปกรณ์นี้ด้วย
             </p>
             <p>
               การแจ้งเตือนเปิดหรือปิดได้ตามต้องการ หากเปิดไว้

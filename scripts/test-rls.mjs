@@ -11,7 +11,8 @@ for (const name of (await readdir("supabase/migrations"))
       n.endsWith("_fitlog_private_journal.sql") ||
       n.endsWith("_fitlog_device_ownership.sql") ||
       n.endsWith("_fitlog_device_enrollment.sql") ||
-      n.endsWith("_wellio_profile_selection.sql"),
+      n.endsWith("_wellio_profile_selection.sql") ||
+      n.endsWith("_wellio_recoverable_journal.sql"),
   )
   .sort())
   await db.exec(await readFile(`supabase/migrations/${name}`, "utf8"));
@@ -21,6 +22,7 @@ await db.exec(
 );
 await db.exec(await readFile("supabase/tests/device_enrollment.sql", "utf8"));
 await db.exec(await readFile("supabase/tests/profile_selection.sql", "utf8"));
+await db.exec(await readFile("supabase/tests/recoverable_journal.sql", "utf8"));
 console.log(
   "PASS: migrations, all-table isolation, anonymous denial, cross-owner writes, plan FK ownership, protected profile enrollment and atomic deletion",
 );

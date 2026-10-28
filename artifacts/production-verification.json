@@ -1,0 +1,28 @@
+{
+  "checkedAt": "2026-10-28T01:53:54.465Z",
+  "passed": true,
+  "initialRequests": [
+    "http://127.0.0.1:4173/assets/index-CPxKStoD.js",
+    "http://127.0.0.1:4173/assets/rolldown-runtime-XKyaHtl9.js",
+    "http://127.0.0.1:4173/assets/react-C1iE8mnY.js",
+    "http://127.0.0.1:4173/assets/supabase-Bwm3Z89P.js",
+    "http://127.0.0.1:4173/assets/AppShell-Budetm4G.js",
+    "http://127.0.0.1:4173/assets/useJournal-Mpo9yoS8.js",
+    "http://127.0.0.1:4173/assets/utensils-dKeurO1p.js",
+    "http://127.0.0.1:4173/assets/Dashboard-CQ4WjA66.js",
+    "http://127.0.0.1:4173/assets/check-CSdtGN4X.js",
+    "http://127.0.0.1:4173/assets/clock-3-Cm_ZBH2X.js",
+    "http://127.0.0.1:4173/assets/Timeline-DO4FoSMX.js",
+    "http://127.0.0.1:4173/assets/MealPhoto-CTcyiPUM.js",
+    "http://127.0.0.1:4173/assets/photos-CTBWAXvm.js",
+    "http://127.0.0.1:4173/assets/pencil-8vnFC8Qj.js",
+    "http://127.0.0.1:4173/assets/trash-CjtEJIPV.js",
+    "http://127.0.0.1:4173/assets/useNow-D0UkecYM.js"
+  ],
+  "results": [
+    "Real built lazy routes render without runtime errors",
+    "Optional form/charts/settings/HEIC are absent from initial requests",
+    "Production HEIC worker decodes, crops and saves a real HEIC fixture",
+    "Mobile viewport has no horizontal overflow"
+  ]
+}

@@ -1,0 +1,27 @@
+begin;
+select set_config('request.jwt.claim.sub',(select user_id::text from public.profiles where slug='mix'),true);
+select set_config('wellio_test.owner',current_setting('request.jwt.claim.sub'),true);
+select set_config('wellio_test.meal',gen_random_uuid()::text,true);
+select set_config('wellio_test.weight',gen_random_uuid()::text,true);
+set local role authenticated;
+insert into public.meal_entries(id,owner_user_id,name,meal_type,eaten_at) values(current_setting('wellio_test.meal')::uuid,auth.uid(),'__rollback_recovery_test__','snack',now());
+update public.meal_entries set deleted_at=now() where id=current_setting('wellio_test.meal')::uuid;
+do $$ begin if not exists(select 1 from public.meal_entries where id=current_setting('wellio_test.meal')::uuid and deleted_at is not null) then raise exception 'soft delete failed';end if;end $$;
+update public.meal_entries set deleted_at=null where id=current_setting('wellio_test.meal')::uuid;
+do $$ begin if not exists(select 1 from public.meal_entries where id=current_setting('wellio_test.meal')::uuid and deleted_at is null) then raise exception 'restore failed';end if;end $$;
+insert into public.weight_checkins(id,owner_user_id,checkin_date,weight_kg,deleted_at) values(current_setting('wellio_test.weight')::uuid,auth.uid(),'1900-01-02',70,now());
+insert into public.weight_checkins(owner_user_id,checkin_date,weight_kg) values(auth.uid(),'1900-01-02',71);
+do $$ begin begin update public.weight_checkins set deleted_at=null where id=current_setting('wellio_test.weight')::uuid;raise exception 'duplicate active day accepted';exception when unique_violation then null;end;end $$;
+do $$ begin begin perform public.purge_expired_journal_entries();raise exception 'authenticated purge accepted';exception when insufficient_privilege then null;end;end $$;
+reset role;
+select set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
+set local role authenticated;
+do $$ declare touched integer;begin update public.meal_entries set deleted_at=now() where id=current_setting('wellio_test.meal')::uuid;get diagnostics touched=row_count;if touched<>0 then raise exception 'foreign delete allowed';end if;end $$;
+reset role;
+-- Only the fixture is aged. Everything, including the purge, is rolled back.
+update public.meal_entries set deleted_at=now()-interval '25 hours' where id=current_setting('wellio_test.meal')::uuid;
+set local role service_role;
+select public.purge_expired_journal_entries();
+reset role;
+do $$ begin if exists(select 1 from public.meal_entries where id=current_setting('wellio_test.meal')::uuid) then raise exception 'expired purge failed';end if;end $$;
+rollback;

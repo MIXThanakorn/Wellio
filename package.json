@@ -11,7 +11,9 @@
     "test:e2e": "playwright test",
     "db:test": "node scripts/test-rls.mjs",
     "test:sessions": "node scripts/test-live-sessions.mjs",
-    "test:photos": "node scripts/test-live-photos.mjs"
+    "test:photos": "node scripts/test-live-photos.mjs",
+    "check:size": "node scripts/check-build-size.mjs",
+    "test:production": "node scripts/test-production.mjs"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +22,7 @@
   "dependencies": {
     "@supabase/supabase-js": "2.118.0",
     "@tanstack/react-query": "5.105.0",
+    "heic-to": "1.6.7",
     "lucide-react": "1.61.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",

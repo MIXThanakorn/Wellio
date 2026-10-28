@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Plus, Search, ChevronLeft, ChevronRight, Star, X } from "lucide-react";
 import { useJournal } from "./useJournal";
@@ -21,7 +21,13 @@ export function JournalPage() {
     null,
   );
   const journal = useJournal();
-  const { add, notify } = useUI();
+  const { add, notify, setEntryDay } = useUI();
+  useEffect(() => {
+    setEntryDay(allDates ? undefined : day);
+    return () => setEntryDay(undefined);
+  }, [day, allDates, setEntryDay]);
+  const addForDay = (kind?: EntryKind, initial?: Record<string, unknown>) =>
+    add(kind, { ...initial, ...(!allDates ? { _day: day } : {}) });
   if (journal.isPending) return <Loading />;
   if (journal.isError)
     return (
@@ -41,7 +47,7 @@ export function JournalPage() {
         </div>
         <button
           className="button primary"
-          onClick={() => add(filter === "all" ? undefined : filter)}
+          onClick={() => addForDay(filter === "all" ? undefined : filter)}
         >
           <Plus size={18} />
           เพิ่มบันทึก
@@ -158,6 +164,7 @@ export function JournalPage() {
           search={search}
           mealType={filter === "meal" ? mealType : "all"}
           showDate={allDates}
+          onAdd={addForDay}
         />
       </section>
       {data.favorites.length > 0 && (
@@ -173,7 +180,7 @@ export function JournalPage() {
                 <button
                   className="chip"
                   onClick={() =>
-                    add("meal", {
+                    addForDay("meal", {
                       name: f.name,
                       meal_type: f.meal_type,
                       portion_text: f.portion_text,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useJournal } from "../journal/useJournal";
 import { useUI } from "../../components/AppShell";
@@ -10,7 +10,11 @@ export function CalendarPage() {
   const [month, setMonth] = useState(dayKey().slice(0, 7));
   const [view, setView] = useState<"month" | "week">("month");
   const journal = useJournal();
-  const { add } = useUI();
+  const { add, setEntryDay } = useUI();
+  useEffect(() => {
+    setEntryDay(selected);
+    return () => setEntryDay(undefined);
+  }, [selected, setEntryDay]);
   if (journal.isPending) return <Loading />;
   if (journal.isError) return <ErrorBox message={journal.error.message} />;
   const data = journal.data!;
@@ -36,11 +40,20 @@ export function CalendarPage() {
           <h1>ปฏิทินของคุณ</h1>
           <p>มองย้อนวันดีๆ และวางแผนวันข้างหน้า</p>
         </div>
-        <button className="button primary" onClick={() => add()}>
+        <button
+          className="button primary"
+          disabled={selected > dayKey()}
+          onClick={() => add(undefined, { _day: selected })}
+        >
           <Plus size={18} />
           เพิ่มบันทึก
         </button>
       </div>
+      {selected > dayKey() && (
+        <p className="help" role="status">
+          วันที่นี้ยังมาไม่ถึง เลือกวันนี้หรือวันก่อนหน้าเพื่อเพิ่มบันทึก
+        </p>
+      )}
       <section className="card calendar-card">
         <div className="calendar-toolbar">
           <div>
@@ -146,7 +159,11 @@ export function CalendarPage() {
       </section>
       <section className="card">
         <h2>{thaiDate(selected + "T12:00:00+07:00")}</h2>
-        <Timeline data={data} day={selected} />
+        <Timeline
+          data={data}
+          day={selected}
+          onAdd={(kind) => add(kind, { _day: selected })}
+        />
       </section>
     </>
   );

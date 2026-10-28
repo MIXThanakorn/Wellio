@@ -9,6 +9,7 @@ export interface Profile {
   hide_weight: boolean;
 }
 export interface BaseRow {
+  deleted_at?: string | null;
   id: string;
   owner_user_id: string;
   created_at?: string;
